@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MotoTrip Planner</title>
+    <!-- Importation de TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Importation de l'icône (Font Awesome) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Fond gris clair */
+        }
+        /* Style pour les modales */
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-content {
+            transition: transform 0.25s ease;
+        }
+        /* Style pour les éléments désactivés */
+        :disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Conteneur principal de l'application -->
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <!-- En-tête -->
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 flex items-center">
+                <img src="https://static.wixstatic.com/media/5ca515_6dd9b70eb31b4ce5be891b7a284532fd~mv2.png/v1/fill/w_326,h_82,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/oldibikepolice.png" alt="OldiBike Logo" class="h-16 mr-4">
+                MotoTrip Planner
+            </h1>
+            <p class="text-lg text-gray-600 mt-2">Organisez vos itinéraires Kurviger et vos hôtels RateHawk en un seul endroit.</p>
+            <div class="flex items-center gap-3 mt-2">
+                <p class="text-sm text-gray-500">Votre ID utilisateur (pour info) : <code id="userIdDisplay" class="bg-gray-200 px-2 py-1 rounded">Chargement...</code></p>
+                <button id="restore-account-btn" class="text-sm text-blue-600 hover:text-blue-800 underline" title="Restaurer un ancien compte">
+                    <i class="fas fa-user-circle mr-1"></i>Restaurer mon compte
+                </button>
+            </div>
+            
+            <!-- Bouton de migration (visible uniquement si données localStorage détectées) -->
+            <div id="migration-banner" class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 hidden">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-yellow-800 font-semibold">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            Données locales détectées !
+                        </p>
+                        <p class="text-yellow-700 text-sm mt-1">
+                            Vous avez des voyages sauvegardés en local. Cliquez pour les transférer vers Firebase.
+                        </p>
+                    </div>
+                    <button id="migrate-data-btn" class="ml-4 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium whitespace-nowrap">
+                        <i class="fas fa-cloud-upload-alt mr-2"></i>Migrer mes données
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Grille principale de l'application -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <!-- Colonne 1: Liste des Voyages -->
+            <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold mb-4">Mes Voyages</h2>
+                <form id="add-trip-form" class="flex gap-2 mb-4">
+                    <input type="text" id="trip-name-input" placeholder="Nom du voyage (ex: Alpes 10 jours)" class="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required disabled>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium shrink-0" disabled>
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </form>
+                <div id="trips-list" class="space-y-2">
+                    <!-- Les voyages seront injectés ici par JS -->
+                    <p class="text-gray-500">Aucun voyage pour le moment. Ajoutez-en un !</p>
+                </div>
+            </div>
+
+            <!-- Colonne 2: Détails du Voyage Sélectionné -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- Section des Étapes -->
+                <div id="trip-details-container" class="bg-white p-6 rounded-lg shadow-md hidden">
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                        <h2 class="text-2xl font-semibold">Détails de : <span id="current-trip-name" class="text-blue-600"></span></h2>
+                        <button id="add-day-modal-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium w-full sm:w-auto">
+                            <i class="fas fa-plus mr-2"></i>Ajouter une étape
+                        </button>
+                    </div>
+
+                    <!-- Calculateur de coût -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg mb-6 border border-blue-200">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Prix Double -->
+                            <div class="bg-white p-3 rounded-lg shadow-sm">
+                                <h3 class="text-sm font-semibold text-gray-600 mb-2">Prix Double</h3>
+                                <div class="space-y-1">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600">Coût total :</span>
+                                        <span id="total-double" class="text-lg font-bold text-blue-600">0.00€</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-xs text-gray-500">
+                                        <span>Par personne :</span>
+                                        <span id="total-double-pp" class="font-semibold">0.00€</span>
+                                    </div>
+                                    <div class="flex justify-between items-center border-t pt-1">
+                                        <span class="text-sm text-gray-600">Prix de vente :</span>
+                                        <span id="sale-double" class="text-xl font-bold text-green-600">0.00€</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-xs text-green-700">
+                                        <span>Par personne :</span>
+                                        <span id="sale-double-pp" class="font-semibold">0.00€</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Prix Solo -->
+                            <div class="bg-white p-3 rounded-lg shadow-sm">
+                                <h3 class="text-sm font-semibold text-gray-600 mb-2">Prix Solo</h3>
+                                <div class="space-y-1">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600">Coût total :</span>
+                                        <span id="total-solo" class="text-lg font-bold text-blue-600">0.00€</span>
+                                    </div>
+                                    <div class="flex justify-between items-center border-t pt-1">
+                                        <span class="text-sm text-gray-600">Prix de vente :</span>
+                                        <span id="sale-solo" class="text-xl font-bold text-green-600">0.00€</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Champ Prix de vente par personne -->
+                        <div class="mt-3 bg-white p-4 rounded-lg shadow-sm border-2 border-indigo-200">
+                            <div class="flex items-center gap-3 mb-3">
+                                <label for="sale-price-pp-input" class="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                                    <i class="fas fa-euro-sign mr-1 text-indigo-600"></i>Prix de vente P/P :
+                                </label>
+                                <input 
+                                    type="number" 
+                                    id="sale-price-pp-input" 
+                                    min="0" 
+                                    step="0.01" 
+                                    placeholder="0.00" 
+                                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-semibold"
+                                >
+                                <span class="text-sm text-gray-600">€</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                                <span class="text-sm text-gray-600">Marge par personne :</span>
+                                <div class="text-right">
+                                    <span id="margin-per-person" class="text-lg font-bold text-indigo-600">0.00€</span>
+                                    <span id="margin-percent" class="text-xs text-gray-500 ml-2">(0%)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="days-list" class="space-y-4">
+                        <!-- Les étapes du voyage seront injectées ici -->
+                    </div>
+                </div>
+
+                <!-- Section de l'Outil d'Adaptation -->
+                <div id="adapter-container" class="bg-white p-6 rounded-lg shadow-md hidden">
+                    <h2 class="text-2xl font-semibold mb-4">Outil d'Adaptation</h2>
+                    <p class="text-gray-600 mb-4">Cochez les étapes que vous souhaitez inclure dans votre nouveau voyage, puis générez la liste.</p>
+                    <div id="adapter-checklist" class="space-y-3 mb-4">
+                        <!-- La checklist des étapes sera injectée ici -->
+                    </div>
+                    <button id="generate-list-btn" class="w-full bg-purple-600 text-white px-4 py-3 rounded-md hover:bg-purple-700 font-semibold">
+                        Générer la liste
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale pour Ajouter une Étape -->
+    <div id="add-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95 my-8">
+            <h3 class="text-2xl font-semibold mb-6">Ajouter une nouvelle étape</h3>
+            <form id="add-day-form">
+                <input type="hidden" id="editing-day-id"> <!-- Pour le mode édition -->
+                <div class="space-y-4">
+                    <div>
+                        <label for="day-name" class="block text-sm font-medium text-gray-700">Nom du Jour (ex: Jour 1, Jour 2C)</label>
+                        <input type="text" id="day-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div>
+                        <label for="day-city" class="block text-sm font-medium text-gray-700">Ville</label>
+                        <input type="text" id="day-city" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Epinal" required>
+                    </div>
+                    
+                    <div>
+                        <label for="day-hotel-name" class="block text-sm font-medium text-gray-700">Nom de l'hôtel</label>
+                        <input type="text" id="day-hotel-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Logis Hôtel Atrium" required>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="day-price-double" class="block text-sm font-medium text-gray-700">Prix Double (€)</label>
+                            <input type="number" id="day-price-double" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label for="day-price-solo" class="block text-sm font-medium text-gray-700">Prix Solo (€)</label>
+                            <input type="number" id="day-price-solo" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="day-nights" class="block text-sm font-medium text-gray-700">Nombre de nuits <span class="text-xs text-gray-500">(optionnel)</span></label>
+                        <input type="number" id="day-nights" min="1" step="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="1">
+                        <p class="text-xs text-gray-500 mt-1">Indiquez si vous restez plusieurs nuits à cette étape. Le prix ne sera pas multiplié.</p>
+                    </div>
+                    
+                    <div>
+                        <label for="day-gpx-file" class="block text-sm font-medium text-gray-700">Fichier GPX (ex: Jour 1)</label>
+                        <input type="text" id="day-gpx-file" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label for="day-hotel-link" class="block text-sm font-medium text-gray-700">URL Hôtel (RateHawk, etc.)</label>
+                        <input type="url" id="day-hotel-link" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8">
+                    <button type="button" id="cancel-add-day-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
+                    <button type="submit" id="save-day-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">Enregistrer l'étape</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale pour la Liste Adaptée -->
+    <div id="adapted-list-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl transform scale-95 my-8">
+            <h3 class="text-2xl font-semibold mb-6">Votre voyage adapté</h3>
+            <div id="adapted-list-content" class="space-y-4">
+                <!-- La liste générée sera injectée ici -->
+            </div>
+             <p class="text-sm text-gray-500 mt-6">Ceci est la liste des étapes et hôtels pour votre voyage personnalisé.</p>
+            <div class="flex justify-end mt-8">
+                <button type="button" id="close-adapted-list-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">Fermer</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modale de Confirmation de Suppression -->
+    <div id="delete-confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-red-600">Confirmer la suppression</h3>
+            <p id="delete-confirm-message" class="text-gray-700 mb-6">Voulez-vous vraiment supprimer cet élément ?</p>
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-delete-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
+                <button type="button" id="confirm-delete-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium">Supprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale pour Ré-attribuer une Étape -->
+    <div id="reassign-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-2">Ré-attribuer l'étape</h3>
+            <p id="reassign-day-name" class="text-gray-600 mb-6"></p>
+            <div>
+                <label for="destination-trip-select" class="block text-sm font-medium text-gray-700 mb-2">Choisir le voyage de destination :</label>
+                <select id="destination-trip-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            </div>
+            <div class="flex justify-end gap-4 mt-8">
+                <button type="button" id="cancel-reassign-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
+                <button type="button" id="copy-day-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">Copier</button>
+                <button type="button" id="move-day-btn" class="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium">Déplacer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-10 right-10 bg-green-500 text-white px-6 py-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-0 hidden z-50">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Modale de Restauration de Compte -->
+    <div id="restore-account-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-blue-600">
+                <i class="fas fa-user-circle mr-2"></i>Restaurer mon compte
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Si vous aviez déjà créé des voyages avec un ancien ID utilisateur, entrez-le ici pour retrouver vos données.
+            </p>
+            <div class="mb-4">
+                <label for="old-user-id-input" class="block text-sm font-medium text-gray-700 mb-2">
+                    Ancien ID utilisateur :
+                </label>
+                <input 
+                    type="text" 
+                    id="old-user-id-input" 
+                    placeholder="Ex: uoYbfWJcbnPJ4sveaL23v73dOAO2"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                >
+                <p class="text-xs text-gray-500 mt-2">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Vous pouvez trouver cet ID en ouvrant la console du navigateur (F12) sur votre ancien site et en tapant : localStorage
+                </p>
+            </div>
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-restore-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="confirm-restore-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">
+                    <i class="fas fa-sync-alt mr-2"></i>Restaurer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale de Migration -->
+    <div id="migration-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-blue-600">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Migration des données
+            </h3>
+            <div id="migration-content">
+                <p class="text-gray-700 mb-4">Nous allons transférer vos données locales vers Firebase :</p>
+                <div id="migration-summary" class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <p class="text-sm text-gray-600">Analyse en cours...</p>
+                </div>
+                <p class="text-sm text-gray-500 mb-6">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Cette opération est sans risque. Vos données locales seront conservées jusqu'à confirmation.
+                </p>
+            </div>
+            <div id="migration-progress" class="hidden">
+                <div class="flex items-center justify-center mb-4">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+                <p class="text-center text-gray-600">Migration en cours...</p>
+            </div>
+            <div id="migration-success" class="hidden">
+                <div class="flex items-center justify-center mb-4">
+                    <i class="fas fa-check-circle text-green-500 text-5xl"></i>
+                </div>
+                <p class="text-center text-gray-700 font-semibold">Migration réussie !</p>
+                <p class="text-center text-sm text-gray-500 mt-2">Vos données sont maintenant synchronisées avec Firebase.</p>
+            </div>
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" id="cancel-migration-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
+                <button type="button" id="confirm-migration-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">Commencer la migration</button>
+                <button type="button" id="close-migration-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium hidden">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Importation de Firebase -->
+    <script type="module">
+        // Importations Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            onAuthStateChanged,
+            signInWithCustomToken
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            addDoc, 
+            deleteDoc, 
+            collection, 
+            query, 
+            onSnapshot,
+            getDocs,
+            orderBy,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables d'état globales
+        let userId = null;
+        let currentTripId = null;
+        let currentTripName = null;
+        let unsubscribeTrips = null;
+        let unsubscribeDays = null;
+        let allDaysCache = []; // Cache pour l'outil d'adaptation
+        let stepToReassign = null; // Pour la ré-attribution d'étape
+        let localStorageData = null; // Cache des données localStorage
+        
+        // Variables Firebase (seront initialisées plus tard)
+        let app, auth, db;
+        let appId = 'default-app-id'; // Peut être surchargé si nécessaire
+
+
+        // Éléments DOM
+        const restoreAccountBtn = document.getElementById('restore-account-btn');
+        const restoreAccountModal = document.getElementById('restore-account-modal');
+        const oldUserIdInput = document.getElementById('old-user-id-input');
+        const cancelRestoreBtn = document.getElementById('cancel-restore-btn');
+        const confirmRestoreBtn = document.getElementById('confirm-restore-btn');
+        const migrationBanner = document.getElementById('migration-banner');
+        const migrationModal = document.getElementById('migration-modal');
+        const migrateDataBtn = document.getElementById('migrate-data-btn');
+        const cancelMigrationBtn = document.getElementById('cancel-migration-btn');
+        const confirmMigrationBtn = document.getElementById('confirm-migration-btn');
+        const closeMigrationBtn = document.getElementById('close-migration-btn');
+        const migrationSummary = document.getElementById('migration-summary');
+        const migrationContent = document.getElementById('migration-content');
+        const migrationProgress = document.getElementById('migration-progress');
+        const migrationSuccess = document.getElementById('migration-success');
+        const tripsListEl = document.getElementById('trips-list');
+        const daysListEl = document.getElementById('days-list');
+        const adapterChecklistEl = document.getElementById('adapter-checklist');
+        const addTripForm = document.getElementById('add-trip-form');
+        const tripNameInput = document.getElementById('trip-name-input');
+        const addTripButton = document.querySelector('#add-trip-form button');
+        const addDayForm = document.getElementById('add-day-form');
+        const tripDetailsContainer = document.getElementById('trip-details-container');
+        const adapterContainer = document.getElementById('adapter-container');
+        const currentTripNameEl = document.getElementById('current-trip-name');
+        
+        // Modales
+        const addDayModal = document.getElementById('add-day-modal');
+        const addDayModalBtn = document.getElementById('add-day-modal-btn');
+        const cancelAddDayBtn = document.getElementById('cancel-add-day-btn');
+        const adaptedListModal = document.getElementById('adapted-list-modal');
+        const generateListBtn = document.getElementById('generate-list-btn');
+        const closeAdaptedListBtn = document.getElementById('close-adapted-list-btn');
+        const reassignDayModal = document.getElementById('reassign-day-modal');
+        const cancelReassignBtn = document.getElementById('cancel-reassign-btn');
+        const copyDayBtn = document.getElementById('copy-day-btn');
+        const moveDayBtn = document.getElementById('move-day-btn');
+        const destinationTripSelect = document.getElementById('destination-trip-select');
+        const reassignDayNameEl = document.getElementById('reassign-day-name');
+        const addDayModalTitle = addDayModal.querySelector('h3');
+        const saveDayBtn = document.getElementById('save-day-btn');
+        
+        // Modale de suppression
+        const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const deleteConfirmMessage = document.getElementById('delete-confirm-message');
+        let deleteCallback = null; // Stocke la fonction à appeler
+
+        // Toast
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        /**
+         * Extrait la ville et le nom de l'hôtel depuis une URL RateHawk.
+         */
+        function parseRateHawkUrl(url) {
+            try {
+                // URL format: https://www.ratehawk.com/hotel/france/chemaudin/mid9010270/hotel_akena_besancon/...
+                const urlObj = new URL(url);
+                const pathParts = urlObj.pathname.split('/').filter(p => p);
+                
+                if (pathParts[0] === 'hotel' && pathParts.length >= 5) {
+                    // pathParts[1] = pays (france)
+                    // pathParts[2] = ville (chemaudin)
+                    // pathParts[3] = id (mid9010270)
+                    // pathParts[4] = nom de l'hôtel (hotel_akena_besancon)
+                    
+                    const city = pathParts[2].replace(/_/g, ' ').replace(/-/g, ' ');
+                    const hotelSlug = pathParts[4].replace(/_/g, ' ').replace(/-/g, ' ');
+                    
+                    // Capitalize first letter of each word
+                    const capitalizeWords = (str) => str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    
+                    return {
+                        city: capitalizeWords(city),
+                        hotelName: capitalizeWords(hotelSlug)
+                    };
+                }
+            } catch (e) {
+                console.error('Erreur lors du parsing de l\'URL:', e);
+            }
+            return null;
+        }
+
+        /**
+         * Affiche une notification toast.
+         */
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            toast.classList.remove('bg-green-500', 'bg-red-500', 'hidden', 'opacity-0');
+            toast.classList.add(type === 'success' ? 'bg-green-500' : 'bg-red-500');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        /**
+         * Bascule la visibilité d'une modale.
+         */
+        function toggleModal(modalEl, show) {
+            const content = modalEl.querySelector('.modal-content');
+            if (show) {
+                modalEl.classList.remove('hidden');
+                setTimeout(() => {
+                    modalEl.classList.remove('opacity-0'); // Assurez-vous que l'opacité est à 1
+                    if(content) content.classList.remove('scale-95');
+                }, 10);
+            } else {
+                modalEl.classList.add('opacity-0');
+                 if(content) content.classList.add('scale-95');
+                setTimeout(() => {
+                    modalEl.classList.add('hidden');
+                }, 250);
+            }
+        }
+        
+        /**
+         * Affiche la modale de confirmation de suppression.
+         */
+        function showDeleteConfirm(message, callback) {
+            deleteConfirmMessage.textContent = message;
+            deleteCallback = callback;
+            toggleModal(deleteConfirmModal, true);
+        }
+        
+        // Listeners pour la modale de suppression
+        cancelDeleteBtn.addEventListener('click', () => {
+            deleteCallback = null;
+            toggleModal(deleteConfirmModal, false);
+        });
+        
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (deleteCallback) {
+                deleteCallback();
+            }
+            deleteCallback = null;
+            toggleModal(deleteConfirmModal, false);
+        });
+        
+        deleteConfirmModal.addEventListener('click', (e) => {
+            if (e.target === deleteConfirmModal) {
+                deleteCallback = null;
+                toggleModal(deleteConfirmModal, false);
+            }
+        });
+
+        /**
+         * Une fois l'authentification réussie, cette fonction est appelée.
+         */
+        function onAuthSuccess() {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    // Vérifie s'il y a un userId restauré dans localStorage
+                    const savedUserId = localStorage.getItem('savedUserId');
+                    
+                    if (savedUserId) {
+                        // Utilise l'ancien userId restauré
+                        userId = savedUserId;
+                        console.log('Utilisation du userId restauré:', userId);
+                    } else {
+                        // Utilise le nouveau userId et le sauvegarde
+                        userId = user.uid;
+                        localStorage.setItem('savedUserId', userId);
+                        console.log('Nouveau userId sauvegardé:', userId);
+                    }
+                    
+                    document.getElementById('userIdDisplay').textContent = userId;
+                    // Active les formulaires maintenant que l'utilisateur est connecté
+                    tripNameInput.disabled = false;
+                    addTripButton.disabled = false;
+                    
+                    // Vérifie s'il y a des données localStorage à migrer
+                    checkForLocalStorageData();
+                    
+                    loadTrips();
+                } else {
+                    userId = null;
+                    document.getElementById('userIdDisplay').textContent = "Non connecté";
+                    // Désactive les formulaires
+                    tripNameInput.disabled = true;
+                    addTripButton.disabled = true;
+
+                    // Nettoyer l'interface
+                    if (unsubscribeTrips) unsubscribeTrips();
+                    if (unsubscribeDays) unsubscribeDays();
+                    tripsListEl.innerHTML = '<p class="text-gray-500">Veuillez vous connecter.</p>';
+                    tripDetailsContainer.classList.add('hidden');
+                    adapterContainer.classList.add('hidden');
+                }
+            });
+        }
+
+        /**
+         * Gère l'authentification et démarre l'application.
+         */
+        async function initAuth(firebaseConfig, initialAuthToken) {
+            try {
+                // Initialisation Firebase
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    // Fallback sur l'authentification anonyme si aucun token n'est fourni
+                    await signInAnonymously(auth);
+                }
+                
+                // Si tout va bien, on continue
+                onAuthSuccess();
+
+            } catch (error) {
+                console.error("Erreur d'initialisation ou d'authentification:", error);
+                document.getElementById('userIdDisplay').textContent = "Erreur de config";
+                showToast("Erreur de configuration Firebase", "error");
+                // En cas d'erreur, on ré-affiche la modale de configuration
+                toggleModal(document.getElementById('config-modal'), true);
+            }
+        }
+
+        /**
+         * Point d'entrée de l'application. Vérifie la configuration.
+         */
+        function startApp() {
+            // La configuration est maintenant directement dans le code.
+            const firebaseConfig = {
+                apiKey: "AIzaSyA6h4eD-H9p1iFK8tf-2QFS-PzVcjGmGOo",
+                authDomain: "mototrip-63c76.firebaseapp.com",
+                projectId: "mototrip-63c76",
+                storageBucket: "mototrip-63c76.appspot.com",
+                messagingSenderId: "1080042188681",
+                appId: "1:1080042188681:web:335bc72f4ae5b3a9f7fb58",
+                measurementId: "G-4XMMVPSY72"
+            };
+
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // Démarrage avec la config ci-dessus et authentification anonyme (token = null)
+            initAuth(firebaseConfig, null);
+        }
+        /**
+         * Charge la liste des voyages depuis Firestore.
+         */
+        function loadTrips() {
+            if (!userId) return;
+            
+            const tripsCollectionPath = `artifacts/${appId}/users/${userId}/trips`;
+            // Trie par nom
+            const q = query(collection(db, tripsCollectionPath), orderBy("name"));
+
+            if (unsubscribeTrips) unsubscribeTrips(); // Se désabonne de l'ancien listener
+
+            unsubscribeTrips = onSnapshot(q, (snapshot) => {
+                if (snapshot.empty) {
+                    tripsListEl.innerHTML = '<p class="text-gray-500">Aucun voyage. Ajoutez-en un !</p>';
+                    return;
+                }
+                
+                tripsListEl.innerHTML = ''; // Nettoie la liste
+                snapshot.forEach((doc) => {
+                    const trip = doc.data();
+                    const tripEl = document.createElement('div');
+                    tripEl.className = `flex justify-between items-center p-3 rounded-md cursor-pointer transition-colors ${doc.id === currentTripId ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}`;
+                    tripEl.dataset.id = doc.id;
+                    tripEl.dataset.name = trip.name;
+
+                    tripEl.innerHTML = `
+                        <span class="font-medium">${trip.name}</span>
+                        <button data-id="${doc.id}" data-name="${trip.name}" class="delete-trip-btn text-red-500 hover:text-red-700 opacity-50 hover:opacity-100 transition-opacity">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    `;
+                    
+                    // Gère la sélection du voyage
+                    tripEl.addEventListener('click', (e) => {
+                        if (e.target.closest('.delete-trip-btn')) return; // Ne pas sélectionner si on clique sur supprimer
+                        selectTrip(doc.id, trip.name);
+                    });
+
+                    // Gère la suppression
+                    tripEl.querySelector('.delete-trip-btn').addEventListener('click', (e) => {
+                        e.stopPropagation(); // Empêche la sélection
+                        deleteTrip(doc.id, trip.name);
+                    });
+
+                    tripsListEl.appendChild(tripEl);
+                });
+            }, (error) => {
+                console.error("Erreur lors du chargement des voyages:", error);
+                showToast("Erreur de chargement des voyages", "error");
+            });
+        }
+
+        /**
+         * Gère l'ajout d'un nouveau voyage.
+         */
+        addTripForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!userId) {
+                showToast("Vous n'êtes pas connecté.", "error");
+                return;
+            }
+
+            const tripName = tripNameInput.value.trim();
+            if (!tripName) return;
+
+            const tripsCollectionPath = `artifacts/${appId}/users/${userId}/trips`;
+            
+            try {
+                await addDoc(collection(db, tripsCollectionPath), {
+                    name: tripName,
+                    createdAt: serverTimestamp()
+                });
+                tripNameInput.value = ''; // Réinitialise le champ
+                showToast("Voyage ajouté !", "success");
+            } catch (error) {
+                console.error("Erreur lors de l'ajout du voyage:", error);
+                showToast("Erreur lors de l'ajout du voyage", "error");
+            }
+        });
+
+        /**
+         * Gère la suppression d'un voyage (et de ses étapes).
+         */
+        async function deleteTrip(tripId, tripName) {
+            // NOTE: La suppression d'une sous-collection depuis le client est complexe.
+            // Pour cette V1, nous ne supprimons que le document du voyage.
+            // Une solution complète nécessiterait une Cloud Function.
+            // Les étapes deviendront "orphelines" mais inaccessibles via l'UI.
+            
+            showDeleteConfirm(`Voulez-vous vraiment supprimer le voyage "${tripName}" ?\n(Note: Les étapes associées ne seront plus accessibles.)`, async () => {
+                try {
+                    const tripDocPath = `artifacts/${appId}/users/${userId}/trips/${tripId}`;
+                    await deleteDoc(doc(db, tripDocPath));
+                    
+                    if (currentTripId === tripId) {
+                        currentTripId = null;
+                        currentTripName = null;
+                        tripDetailsContainer.classList.add('hidden');
+                        adapterContainer.classList.add('hidden');
+                    }
+                    showToast("Voyage supprimé.", "success");
+                } catch (error) {
+                    console.error("Erreur lors de la suppression du voyage:", error);
+                    showToast("Erreur de suppression", "error");
+                }
+            });
+        }
+
+        /**
+         * Sélectionne un voyage et charge ses étapes.
+         */
+        function selectTrip(tripId, tripName) {
+            currentTripId = tripId;
+            currentTripName = tripName;
+
+            currentTripNameEl.textContent = tripName;
+            tripDetailsContainer.classList.remove('hidden');
+            adapterContainer.classList.remove('hidden');
+
+            // Met à jour le style de la liste des voyages (recharge pour le style)
+            Array.from(tripsListEl.children).forEach(child => {
+                if (child.dataset.id === tripId) {
+                    child.classList.add('bg-blue-100', 'text-blue-800');
+                    child.classList.remove('hover:bg-gray-100');
+                } else {
+                    child.classList.remove('bg-blue-100', 'text-blue-800');
+                    child.classList.add('hover:bg-gray-100');
+                }
+            });
+            
+            loadDays();
+        }
+
+        /**
+         * Charge les étapes du voyage sélectionné.
+         */
+        function loadDays() {
+            if (!userId || !currentTripId) return;
+
+            const daysCollectionPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days`;
+            // Trie par date de création pour garder l'ordre d'ajout
+            const q = query(collection(db, daysCollectionPath), orderBy("createdAt"));
+
+            if (unsubscribeDays) unsubscribeDays(); // Se désabonne
+
+            unsubscribeDays = onSnapshot(q, (snapshot) => {
+                daysListEl.innerHTML = '';
+                adapterChecklistEl.innerHTML = '';
+                allDaysCache = []; // Réinitialise le cache
+
+                if (snapshot.empty) {
+                    daysListEl.innerHTML = '<p class="text-gray-500">Aucune étape pour ce voyage. Ajoutez-en une !</p>';
+                    adapterChecklistEl.innerHTML = '<p class="text-gray-500">Aucune étape à adapter.</p>';
+                    return;
+                }
+
+                snapshot.forEach((doc) => {
+                    const day = doc.data();
+                    day.id = doc.id;
+                    allDaysCache.push(day); // Ajoute au cache pour l'adaptateur
+
+                    // Affiche dans la liste des détails
+                    const dayEl = document.createElement('div');
+                    dayEl.className = 'border border-gray-200 p-4 rounded-lg flex justify-between items-start';
+                    dayEl.innerHTML = `
+                        <div class="flex-grow overflow-hidden pr-2">
+                            <h4 class="font-semibold text-lg">
+                                ${day.dayName} 
+                                ${day.city ? `<span class="text-gray-500 font-normal text-base">• ${day.city}</span>` : ''}
+                                ${day.nights && day.nights > 1 ? `<span class="ml-2 bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-semibold"><i class="fas fa-moon mr-1"></i>${day.nights} nuits</span>` : ''}
+                            </h4>
+                            <p class="text-gray-700 truncate">
+                                <i class="fas fa-hotel text-gray-500 w-4 mr-1"></i> 
+                                ${day.hotelName}
+                                ${day.hotelLink ? `<a href="${day.hotelLink}" target="_blank" class="text-blue-500 hover:underline ml-2"><i class="fas fa-external-link-alt text-xs"></i></a>` : ''}
+                            </p>
+                            <p class="text-gray-600 text-sm mt-1">
+                                <i class="fas fa-users text-gray-500 w-4 mr-1"></i> Double: <strong>${day.priceDouble.toFixed(2)}€</strong>
+                                <i class="fas fa-user text-gray-500 w-4 ml-3 mr-1"></i> Solo: <strong>${day.priceSolo.toFixed(2)}€</strong>
+                            </p>
+                            <p class="text-gray-600 text-sm">
+                                <i class="fas fa-map-signs text-gray-500 w-4 mr-1"></i> GPX: <strong>${day.gpxFile || 'N/A'}</strong>
+                            </p>
+                        </div>
+                        <div class="flex flex-col items-center gap-3 ml-4 shrink-0">
+                             <button data-id="${day.id}" class="edit-day-btn text-blue-500 hover:text-blue-700 opacity-60 hover:opacity-100 transition-opacity" title="Modifier l'étape">
+                                <i class="fas fa-pencil-alt"></i>
+                            </button>
+                            <button data-id="${day.id}" class="reassign-day-btn text-green-600 hover:text-green-800 opacity-60 hover:opacity-100 transition-opacity" title="Copier/Déplacer l'étape">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button data-id="${day.id}" class="delete-day-btn text-red-500 hover:text-red-700 opacity-60 hover:opacity-100 transition-opacity" title="Supprimer l'étape">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                    dayEl.querySelector('.delete-day-btn').addEventListener('click', () => deleteDay(day.id));
+                    dayEl.querySelector('.edit-day-btn').addEventListener('click', () => openEditDayModal(day.id));
+                    dayEl.querySelector('.reassign-day-btn').addEventListener('click', () => openReassignDayModal(day.id));
+                    daysListEl.appendChild(dayEl);
+
+                    // Affiche dans la checklist de l'adaptateur
+                    const checkEl = document.createElement('label');
+                    checkEl.className = 'flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer';
+                    checkEl.innerHTML = `
+                        <input type="checkbox" data-day-index="${allDaysCache.length - 1}" class="adapter-check h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                        <span class="ml-3 font-medium text-gray-800">${day.dayName}: <span class="font-normal text-gray-600">${day.hotelName}</span></span>
+                    `;
+                    adapterChecklistEl.appendChild(checkEl);
+                });
+
+                // Mise à jour du calculateur de coût
+                updateCostCalculator();
+
+            }, (error) => {
+                console.error("Erreur lors du chargement des étapes:", error);
+                showToast("Erreur de chargement des étapes", "error");
+            });
+        }
+
+        /**
+         * Calcule et met à jour les coûts du voyage
+         */
+        function updateCostCalculator() {
+            // Calcul des totaux
+            let totalDouble = 0;
+            let totalSolo = 0;
+
+            allDaysCache.forEach(day => {
+                totalDouble += day.priceDouble || 0;
+                totalSolo += day.priceSolo || 0;
+            });
+
+            // Calcul des coûts par personne
+            const costDoublePerPerson = totalDouble / 2;
+
+            // Récupération du prix de vente par personne saisi
+            const salePricePerPerson = parseFloat(document.getElementById('sale-price-pp-input').value) || 0;
+
+            // Calcul de la marge par personne
+            const marginPerPerson = salePricePerPerson - costDoublePerPerson;
+            
+            // Calcul du pourcentage de marge
+            const marginPercent = costDoublePerPerson > 0 ? (marginPerPerson / costDoublePerPerson) * 100 : 0;
+
+            // Calcul des prix de vente totaux
+            const saleDouble = salePricePerPerson * 2; // Prix de vente pour la chambre double
+            const marginMultiplier = 1 + (marginPercent / 100);
+            const saleSolo = totalSolo * marginMultiplier; // Applique le même % de marge au solo
+
+            // Mise à jour de l'affichage
+            document.getElementById('total-double').textContent = totalDouble.toFixed(2) + '€';
+            document.getElementById('total-double-pp').textContent = costDoublePerPerson.toFixed(2) + '€';
+            document.getElementById('total-solo').textContent = totalSolo.toFixed(2) + '€';
+            document.getElementById('sale-double').textContent = saleDouble.toFixed(2) + '€';
+            document.getElementById('sale-double-pp').textContent = salePricePerPerson.toFixed(2) + '€';
+            document.getElementById('sale-solo').textContent = saleSolo.toFixed(2) + '€';
+            
+            // Affichage de la marge
+            document.getElementById('margin-per-person').textContent = marginPerPerson.toFixed(2) + '€';
+            document.getElementById('margin-percent').textContent = '(' + marginPercent.toFixed(1) + '%)';
+        }
+        
+        /**
+         * Gère l'ajout d'une nouvelle étape.
+         */
+        addDayForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!userId || !currentTripId) return;
+            
+            const editingDayId = document.getElementById('editing-day-id').value;
+
+            const city = document.getElementById('day-city').value.trim();
+            const hotelName = document.getElementById('day-hotel-name').value.trim();
+
+            const nights = parseInt(document.getElementById('day-nights').value) || 1;
+
+            const dayData = {
+                dayName: document.getElementById('day-name').value.trim(),
+                city: city,
+                hotelName: hotelName,
+                priceDouble: parseFloat(document.getElementById('day-price-double').value) || 0,
+                priceSolo: parseFloat(document.getElementById('day-price-solo').value) || 0,
+                nights: nights,
+                gpxFile: document.getElementById('day-gpx-file').value.trim(),
+                hotelLink: document.getElementById('day-hotel-link').value.trim(),
+            };
+
+            // Validation simple
+            if (!dayData.dayName || !city || !hotelName) {
+                showToast("Le 'Nom du Jour', 'Ville' et 'Nom de l'hôtel' sont obligatoires.", "error");
+                return;
+            }
+
+            // Vérification des doublons de ville (sauf en mode édition sur la même étape)
+            const duplicateCitySteps = allDaysCache.filter(d => 
+                d.city && d.city.toLowerCase() === city.toLowerCase() && 
+                (!editingDayId || d.id !== editingDayId)
+            );
+            
+            if (duplicateCitySteps.length > 0) {
+                const hotelsList = duplicateCitySteps.map(d => `"${d.hotelName}"`).join(', ');
+                showToast(`⚠️ Attention : Vous avez déjà ${duplicateCitySteps.length} hôtel(s) à ${city} : ${hotelsList}`, "error");
+                // On continue quand même l'enregistrement après l'avertissement
+            }
+
+            try {
+                const daysCollectionPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days`;
+                if (editingDayId) {
+                    // Mode Mise à jour
+                    const dayDocRef = doc(db, daysCollectionPath, editingDayId);
+                    await setDoc(dayDocRef, dayData, { merge: true }); // merge: true pour ne pas écraser createdAt
+                    showToast("Étape mise à jour !", "success");
+                } else {
+                    // Mode Création
+                    dayData.createdAt = serverTimestamp(); // Ajoute le timestamp seulement à la création
+                    await addDoc(collection(db, daysCollectionPath), dayData);
+                    showToast("Étape ajoutée !", "success");
+                }
+                
+                addDayForm.reset();
+                toggleModal(addDayModal, false);
+            } catch (error) {
+                console.error("Erreur lors de l'enregistrement de l'étape:", error);
+                showToast("Erreur d'enregistrement de l'étape", "error");
+            }
+        });
+
+        /**
+         * Ouvre la modale d'ajout/édition en mode "Édition".
+         */
+        function openEditDayModal(dayId) {
+            const day = allDaysCache.find(d => d.id === dayId);
+            if (!day) return;
+
+            // Pré-remplir le formulaire
+            document.getElementById('editing-day-id').value = day.id;
+            document.getElementById('day-name').value = day.dayName;
+            document.getElementById('day-city').value = day.city || '';
+            document.getElementById('day-hotel-name').value = day.hotelName;
+            document.getElementById('day-price-double').value = day.priceDouble;
+            document.getElementById('day-price-solo').value = day.priceSolo;
+            document.getElementById('day-nights').value = day.nights || 1;
+            document.getElementById('day-gpx-file').value = day.gpxFile;
+            document.getElementById('day-hotel-link').value = day.hotelLink;
+
+            // Adapter la modale
+            addDayModalTitle.textContent = "Modifier l'étape";
+            saveDayBtn.textContent = "Enregistrer les modifications";
+
+            toggleModal(addDayModal, true);
+        }
+
+        /**
+         * Ouvre la modale de ré-attribution d'étape.
+         */
+        async function openReassignDayModal(dayId) {
+            stepToReassign = allDaysCache.find(d => d.id === dayId);
+            if (!stepToReassign) return;
+
+            reassignDayNameEl.textContent = stepToReassign.dayName;
+            destinationTripSelect.innerHTML = '<option>Chargement des voyages...</option>';
+            toggleModal(reassignDayModal, true);
+
+            // Charger les autres voyages
+            try {
+                const tripsCollectionPath = `artifacts/${appId}/users/${userId}/trips`;
+                const q = query(collection(db, tripsCollectionPath), orderBy("name"));
+                const querySnapshot = await getDocs(q);
+                
+                destinationTripSelect.innerHTML = ''; // Nettoyer
+                let hasTrips = false;
+                querySnapshot.forEach(doc => {
+                    if (doc.id !== currentTripId) {
+                        const option = document.createElement('option');
+                        option.value = doc.id;
+                        option.textContent = doc.data().name;
+                        destinationTripSelect.appendChild(option);
+                        hasTrips = true;
+                    }
+                });
+
+                if (!hasTrips) {
+                    destinationTripSelect.innerHTML = '<option value="">Aucun autre voyage disponible</option>';
+                }
+            } catch (error) {
+                console.error("Erreur lors du chargement des voyages pour la ré-attribution:", error);
+                destinationTripSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+            }
+        }
+
+        /**
+         * Copie ou déplace une étape vers un autre voyage.
+         */
+        async function reassignDay(action) {
+            const destinationTripId = destinationTripSelect.value;
+            if (!destinationTripId || !stepToReassign) {
+                showToast("Veuillez sélectionner un voyage de destination.", "error");
+                return;
+            }
+
+            const { id, ...dayData } = stepToReassign; // Copie les données sans l'ID
+            dayData.createdAt = serverTimestamp(); // Nouveau timestamp pour le tri
+
+            const destinationPath = `artifacts/${appId}/users/${userId}/trips/${destinationTripId}/days`;
+            
+            // 1. Copier l'étape
+            await addDoc(collection(db, destinationPath), dayData);
+
+            // 2. Si c'est un déplacement, supprimer l'originale
+            if (action === 'move') {
+                const originalPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days/${id}`;
+                await deleteDoc(doc(db, originalPath));
+            }
+
+            toggleModal(reassignDayModal, false);
+            showToast(`Étape ${action === 'move' ? 'déplacée' : 'copiée'} avec succès !`, "success");
+            stepToReassign = null;
+        }
+
+        /**
+         * Gère la suppression d'une étape.
+         */
+        async function deleteDay(dayId) {
+            showDeleteConfirm("Voulez-vous vraiment supprimer cette étape ?", async () => {
+                if (!userId || !currentTripId) return;
+                try {
+                    const dayDocPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days/${dayId}`;
+                    await deleteDoc(doc(db, dayDocPath));
+                    showToast("Étape supprimée.", "success");
+                } catch (error) {
+                    console.error("Erreur lors de la suppression de l'étape:", error);
+                    showToast("Erreur de suppression", "error");
+                }
+            });
+        }
+        
+        /**
+         * Génère la liste adaptée basée sur les cases cochées.
+         */
+        function generateAdaptedList() {
+            const checkboxes = document.querySelectorAll('.adapter-check:checked');
+            if (checkboxes.length === 0) {
+                showToast("Veuillez sélectionner au moins une étape.", "error");
+                return;
+            }
+
+            const listContentEl = document.getElementById('adapted-list-content');
+            listContentEl.innerHTML = '';
+            let stepCounter = 1;
+
+            checkboxes.forEach(box => {
+                const dayIndex = parseInt(box.dataset.dayIndex);
+                const day = allDaysCache[dayIndex];
+                
+                const itemEl = document.createElement('div');
+                itemEl.className = "border-b border-gray-200 pb-3";
+                itemEl.innerHTML = `
+                    <p class="font-semibold text-lg">Étape ${stepCounter} (${day.dayName}):</p> 
+                    <ul class="list-disc list-inside ml-4 text-gray-800">
+                        <li>Hôtel: ${day.hotelName} ${day.hotelLink ? `<a href="${day.hotelLink}" target="_blank" class="text-blue-500 hover:underline text-sm"><i class="fas fa-external-link-alt"></i></a>` : ''}</li>
+                        <li>Prix: ${day.priceDouble.toFixed(2)}€ (Double) / ${day.priceSolo.toFixed(2)}€ (Solo)</li>
+                        <li>GPX: ${day.gpxFile || 'N/A'}</li>
+                    </ul>
+                `;
+                listContentEl.appendChild(itemEl);
+                stepCounter++;
+            });
+
+            toggleModal(adaptedListModal, true);
+        }
+
+        // --- Listener pour l'extraction automatique depuis l'URL ---
+        const hotelLinkInput = document.getElementById('day-hotel-link');
+        hotelLinkInput.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (url && url.includes('ratehawk.com')) {
+                const parsed = parseRateHawkUrl(url);
+                if (parsed) {
+                    document.getElementById('day-city').value = parsed.city;
+                    document.getElementById('day-hotel-name').value = parsed.hotelName;
+                    showToast(`✨ Auto-rempli : ${parsed.city} - ${parsed.hotelName}`, "success");
+                }
+            }
+        });
+
+        // --- Listener pour le prix de vente par personne (recalcul en temps réel) ---
+        const salePricePPInput = document.getElementById('sale-price-pp-input');
+        salePricePPInput.addEventListener('input', () => {
+            updateCostCalculator();
+        });
+
+        // --- Ajout des listeners pour les modales ---
+        addDayModalBtn.addEventListener('click', () => {
+            // Réinitialiser la modale pour le mode "Ajout"
+            addDayForm.reset();
+            document.getElementById('editing-day-id').value = '';
+            addDayModalTitle.textContent = "Ajouter une nouvelle étape";
+            saveDayBtn.textContent = "Enregistrer l'étape";
+            toggleModal(addDayModal, true);
+        });
+        cancelAddDayBtn.addEventListener('click', () => {
+            toggleModal(addDayModal, false);
+        });
+        generateListBtn.addEventListener('click', generateAdaptedList);
+        closeAdaptedListBtn.addEventListener('click', () => toggleModal(adaptedListModal, false));
+
+        // Listeners pour la modale de ré-attribution
+        cancelReassignBtn.addEventListener('click', () => toggleModal(reassignDayModal, false));
+        copyDayBtn.addEventListener('click', () => reassignDay('copy'));
+        moveDayBtn.addEventListener('click', () => reassignDay('move'));
+
+        // Ferme les modales en cliquant sur le fond
+        [addDayModal, adaptedListModal, reassignDayModal].forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                // Ferme la modale de ré-attribution
+                if (e.target === reassignDayModal) {
+                    toggleModal(reassignDayModal, false);
+                    stepToReassign = null;
+                    return;
+                }
+                // Ferme les autres modales
+                if (e.target === modal) {
+                    toggleModal(modal, false);
+                }
+            });
+        });
+
+        /**
+         * Vérifie s'il y a des données dans le localStorage.
+         */
+        function checkForLocalStorageData() {
+            try {
+                const trips = localStorage.getItem('trips');
+                const days = localStorage.getItem('days');
+                
+                if (trips || days) {
+                    localStorageData = {
+                        trips: trips ? JSON.parse(trips) : [],
+                        days: days ? JSON.parse(days) : []
+                    };
+                    
+                    // Affiche le banner seulement s'il y a des données
+                    if (localStorageData.trips.length > 0 || localStorageData.days.length > 0) {
+                        migrationBanner.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error("Erreur lors de la lecture du localStorage:", error);
+            }
+        }
+
+        /**
+         * Ouvre la modale de migration et affiche le résumé.
+         */
+        function openMigrationModal() {
+            if (!localStorageData) return;
+            
+            const tripsCount = localStorageData.trips.length;
+            const daysCount = localStorageData.days.length;
+            
+            migrationSummary.innerHTML = `
+                <div class="space-y-2">
+                    <p class="font-semibold text-gray-700">
+                        <i class="fas fa-suitcase text-blue-500 mr-2"></i>
+                        ${tripsCount} voyage${tripsCount > 1 ? 's' : ''}
+                    </p>
+                    <p class="font-semibold text-gray-700">
+                        <i class="fas fa-map-marker-alt text-green-500 mr-2"></i>
+                        ${daysCount} étape${daysCount > 1 ? 's' : ''}
+                    </p>
+                </div>
+            `;
+            
+            // Réinitialise l'état de la modale
+            migrationContent.classList.remove('hidden');
+            migrationProgress.classList.add('hidden');
+            migrationSuccess.classList.add('hidden');
+            confirmMigrationBtn.classList.remove('hidden');
+            cancelMigrationBtn.classList.remove('hidden');
+            closeMigrationBtn.classList.add('hidden');
+            
+            toggleModal(migrationModal, true);
+        }
+
+        /**
+         * Effectue la migration des données localStorage vers Firebase.
+         */
+        async function performMigration() {
+            if (!userId || !localStorageData) return;
+            
+            // Affiche la progression
+            migrationContent.classList.add('hidden');
+            migrationProgress.classList.remove('hidden');
+            confirmMigrationBtn.classList.add('hidden');
+            cancelMigrationBtn.classList.add('hidden');
+            
+            try {
+                const tripsCollectionPath = `artifacts/${appId}/users/${userId}/trips`;
+                
+                // Map pour suivre les anciens IDs de voyages vers les nouveaux
+                const tripIdMap = {};
+                
+                // 1. Migrer les voyages
+                for (const trip of localStorageData.trips) {
+                    const tripData = {
+                        name: trip.name,
+                        createdAt: serverTimestamp()
+                    };
+                    
+                    const tripRef = await addDoc(collection(db, tripsCollectionPath), tripData);
+                    tripIdMap[trip.id] = tripRef.id;
+                }
+                
+                // 2. Migrer les étapes
+                for (const day of localStorageData.days) {
+                    const newTripId = tripIdMap[day.tripId];
+                    if (!newTripId) continue; // Ignore si le voyage n'existe pas
+                    
+                    const daysCollectionPath = `artifacts/${appId}/users/${userId}/trips/${newTripId}/days`;
+                    const dayData = {
+                        dayName: day.dayName || day.name || 'Étape',
+                        city: day.city || '',
+                        hotelName: day.hotelName || day.hotel || '',
+                        priceDouble: parseFloat(day.priceDouble) || 0,
+                        priceSolo: parseFloat(day.priceSolo) || 0,
+                        nights: parseInt(day.nights) || 1,
+                        gpxFile: day.gpxFile || day.gpx || '',
+                        hotelLink: day.hotelLink || day.link || '',
+                        createdAt: serverTimestamp()
+                    };
+                    
+                    await addDoc(collection(db, daysCollectionPath), dayData);
+                }
+                
+                // Migration réussie
+                migrationProgress.classList.add('hidden');
+                migrationSuccess.classList.remove('hidden');
+                closeMigrationBtn.classList.remove('hidden');
+                
+                // Cache le banner
+                migrationBanner.classList.add('hidden');
+                
+                // Optionnel: Nettoyer le localStorage après migration réussie
+                // localStorage.removeItem('trips');
+                // localStorage.removeItem('days');
+                // localStorageData = null;
+                
+                showToast("Migration réussie ! Vos données sont maintenant sur Firebase.", "success");
+                
+            } catch (error) {
+                console.error("Erreur lors de la migration:", error);
+                showToast("Erreur lors de la migration", "error");
+                
+                // Réaffiche le contenu initial en cas d'erreur
+                migrationProgress.classList.add('hidden');
+                migrationContent.classList.remove('hidden');
+                confirmMigrationBtn.classList.remove('hidden');
+                cancelMigrationBtn.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Restaure un ancien compte utilisateur
+         */
+        function restoreAccount() {
+            const oldUserId = oldUserIdInput.value.trim();
+            
+            if (!oldUserId) {
+                showToast("Veuillez entrer un ID utilisateur valide.", "error");
+                return;
+            }
+            
+            // Sauvegarde l'ancien userId
+            localStorage.setItem('savedUserId', oldUserId);
+            
+            showToast("Compte restauré ! Rechargez la page pour voir vos données.", "success");
+            
+            toggleModal(restoreAccountModal, false);
+            
+            // Recharge la page pour utiliser le nouvel userId
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+
+        // Listeners pour la restauration de compte
+        restoreAccountBtn.addEventListener('click', () => {
+            toggleModal(restoreAccountModal, true);
+            oldUserIdInput.value = '';
+        });
+        
+        cancelRestoreBtn.addEventListener('click', () => {
+            toggleModal(restoreAccountModal, false);
+        });
+        
+        confirmRestoreBtn.addEventListener('click', restoreAccount);
+        
+        restoreAccountModal.addEventListener('click', (e) => {
+            if (e.target === restoreAccountModal) {
+                toggleModal(restoreAccountModal, false);
+            }
+        });
+
+        // Listeners pour la migration
+        migrateDataBtn.addEventListener('click', openMigrationModal);
+        cancelMigrationBtn.addEventListener('click', () => toggleModal(migrationModal, false));
+        confirmMigrationBtn.addEventListener('click', performMigration);
+        closeMigrationBtn.addEventListener('click', () => {
+            toggleModal(migrationModal, false);
+            // Recharge les voyages pour afficher les données migrées
+            if (currentTripId) {
+                selectTrip(currentTripId, currentTripName);
+            }
+        });
+        
+        migrationModal.addEventListener('click', (e) => {
+            if (e.target === migrationModal && !migrationProgress.classList.contains('hidden')) {
+                // Ne pas fermer pendant la migration
+                return;
+            }
+            if (e.target === migrationModal) {
+                toggleModal(migrationModal, false);
+            }
+        });
+
+        // Démarrage de l'application
+        startApp();
+
+    </script>
+</body>
+</html>
