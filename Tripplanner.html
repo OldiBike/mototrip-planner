@@ -486,11 +486,6 @@
         const cancelUseCodeBtn = document.getElementById('cancel-use-code-btn');
         const confirmUseCodeBtn = document.getElementById('confirm-use-code-btn');
         const accessCodeDisplay = document.getElementById('accessCodeDisplay');
-        const restoreAccountBtn = document.getElementById('restore-account-btn');
-        const restoreAccountModal = document.getElementById('restore-account-modal');
-        const oldUserIdInput = document.getElementById('old-user-id-input');
-        const cancelRestoreBtn = document.getElementById('cancel-restore-btn');
-        const confirmRestoreBtn = document.getElementById('confirm-restore-btn');
         const migrationBanner = document.getElementById('migration-banner');
         const migrationModal = document.getElementById('migration-modal');
         const migrateDataBtn = document.getElementById('migrate-data-btn');
@@ -1543,48 +1538,6 @@
         useCodeModal.addEventListener('click', (e) => {
             if (e.target === useCodeModal) {
                 toggleModal(useCodeModal, false);
-            }
-        });
-
-        /**
-         * Restaure un ancien compte utilisateur
-         */
-        function restoreAccount() {
-            const oldUserId = oldUserIdInput.value.trim();
-            
-            if (!oldUserId) {
-                showToast("Veuillez entrer un ID utilisateur valide.", "error");
-                return;
-            }
-            
-            // Sauvegarde l'ancien userId
-            localStorage.setItem('savedUserId', oldUserId);
-            
-            showToast("Compte restauré ! Rechargez la page pour voir vos données.", "success");
-            
-            toggleModal(restoreAccountModal, false);
-            
-            // Recharge la page pour utiliser le nouvel userId
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        }
-
-        // Listeners pour la restauration de compte
-        restoreAccountBtn.addEventListener('click', () => {
-            toggleModal(restoreAccountModal, true);
-            oldUserIdInput.value = '';
-        });
-        
-        cancelRestoreBtn.addEventListener('click', () => {
-            toggleModal(restoreAccountModal, false);
-        });
-        
-        confirmRestoreBtn.addEventListener('click', restoreAccount);
-        
-        restoreAccountModal.addEventListener('click', (e) => {
-            if (e.target === restoreAccountModal) {
-                toggleModal(restoreAccountModal, false);
             }
         });
 
