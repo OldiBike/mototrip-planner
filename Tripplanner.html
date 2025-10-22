@@ -41,12 +41,18 @@
                 MotoTrip Planner
             </h1>
             <p class="text-lg text-gray-600 mt-2">Organisez vos itinéraires Kurviger et vos hôtels RateHawk en un seul endroit.</p>
-            <div class="flex items-center gap-3 mt-2">
-                <p class="text-sm text-gray-500">Votre ID utilisateur (pour info) : <code id="userIdDisplay" class="bg-gray-200 px-2 py-1 rounded">Chargement...</code></p>
-                <button id="restore-account-btn" class="text-sm text-blue-600 hover:text-blue-800 underline" title="Restaurer un ancien compte">
-                    <i class="fas fa-user-circle mr-1"></i>Restaurer mon compte
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2">
+                <p class="text-sm text-gray-500">
+                    Code d'accès : <code id="accessCodeDisplay" class="bg-green-100 text-green-800 px-2 py-1 rounded font-bold">------</code>
+                    <button id="show-code-setup-btn" class="ml-2 text-blue-600 hover:text-blue-800 underline text-xs">
+                        <i class="fas fa-key mr-1"></i>Configurer
+                    </button>
+                </p>
+                <button id="use-code-btn" class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                    <i class="fas fa-sign-in-alt mr-1"></i>Se connecter avec un code
                 </button>
             </div>
+            <p class="text-xs text-gray-400 mt-1">ID technique : <code id="userIdDisplay" class="bg-gray-100 px-1 rounded text-xs">Chargement...</code></p>
             
             <!-- Bouton de migration (visible uniquement si données localStorage détectées) -->
             <div id="migration-banner" class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 hidden">
@@ -288,6 +294,74 @@
         <span id="toast-message"></span>
     </div>
 
+    <!-- Modale de Configuration de Code -->
+    <div id="code-setup-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-green-600">
+                <i class="fas fa-key mr-2"></i>Configurer votre code d'accès
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Choisissez un code à 6 chiffres pour accéder à vos voyages depuis n'importe quel appareil.
+            </p>
+            <div class="mb-4">
+                <label for="new-access-code-input" class="block text-sm font-medium text-gray-700 mb-2">
+                    Votre code (6 chiffres) :
+                </label>
+                <input 
+                    type="text" 
+                    id="new-access-code-input" 
+                    maxlength="6"
+                    placeholder="123456"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-2xl text-center font-bold"
+                >
+                <p class="text-xs text-gray-500 mt-2">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Notez bien ce code ! Vous en aurez besoin pour vous connecter depuis vos autres appareils.
+                </p>
+            </div>
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-code-setup-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="confirm-code-setup-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
+                    <i class="fas fa-check mr-2"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale de Connexion avec Code -->
+    <div id="use-code-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-blue-600">
+                <i class="fas fa-sign-in-alt mr-2"></i>Se connecter avec un code
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Entrez le code d'accès que vous avez configuré sur un autre appareil.
+            </p>
+            <div class="mb-4">
+                <label for="enter-access-code-input" class="block text-sm font-medium text-gray-700 mb-2">
+                    Code d'accès (6 chiffres) :
+                </label>
+                <input 
+                    type="text" 
+                    id="enter-access-code-input" 
+                    maxlength="6"
+                    placeholder="123456"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-2xl text-center font-bold"
+                >
+            </div>
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-use-code-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="confirm-use-code-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">
+                    <i class="fas fa-unlock mr-2"></i>Se connecter
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modale de Restauration de Compte -->
     <div id="restore-account-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
         <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
@@ -380,6 +454,7 @@
             query, 
             onSnapshot,
             getDocs,
+            getDoc,
             orderBy,
             serverTimestamp
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -400,6 +475,17 @@
 
 
         // Éléments DOM
+        const showCodeSetupBtn = document.getElementById('show-code-setup-btn');
+        const useCodeBtn = document.getElementById('use-code-btn');
+        const codeSetupModal = document.getElementById('code-setup-modal');
+        const useCodeModal = document.getElementById('use-code-modal');
+        const newAccessCodeInput = document.getElementById('new-access-code-input');
+        const enterAccessCodeInput = document.getElementById('enter-access-code-input');
+        const cancelCodeSetupBtn = document.getElementById('cancel-code-setup-btn');
+        const confirmCodeSetupBtn = document.getElementById('confirm-code-setup-btn');
+        const cancelUseCodeBtn = document.getElementById('cancel-use-code-btn');
+        const confirmUseCodeBtn = document.getElementById('confirm-use-code-btn');
+        const accessCodeDisplay = document.getElementById('accessCodeDisplay');
         const restoreAccountBtn = document.getElementById('restore-account-btn');
         const restoreAccountModal = document.getElementById('restore-account-modal');
         const oldUserIdInput = document.getElementById('old-user-id-input');
@@ -575,6 +661,9 @@
                     // Active les formulaires maintenant que l'utilisateur est connecté
                     tripNameInput.disabled = false;
                     addTripButton.disabled = false;
+                    
+                    // Charge et affiche le code d'accès
+                    loadAccessCode();
                     
                     // Vérifie s'il y a des données localStorage à migrer
                     checkForLocalStorageData();
@@ -1308,6 +1397,154 @@
                 cancelMigrationBtn.classList.remove('hidden');
             }
         }
+
+        /**
+         * Charge le code d'accès associé à l'userId depuis Firebase ou localStorage
+         */
+        async function loadAccessCode() {
+            try {
+                // D'abord vérifie dans localStorage
+                const storedCode = localStorage.getItem('accessCode');
+                if (storedCode) {
+                    accessCodeDisplay.textContent = storedCode;
+                    return;
+                }
+                
+                // Sinon cherche dans Firebase
+                const codesCollectionPath = `artifacts/${appId}/accessCodes`;
+                const q = query(collection(db, codesCollectionPath));
+                const querySnapshot = await getDocs(q);
+                
+                querySnapshot.forEach(doc => {
+                    if (doc.data().userId === userId) {
+                        const code = doc.id; // L'ID du document est le code
+                        accessCodeDisplay.textContent = code;
+                        localStorage.setItem('accessCode', code);
+                    }
+                });
+            } catch (error) {
+                console.error("Erreur lors du chargement du code d'accès:", error);
+            }
+        }
+
+        /**
+         * Configure un nouveau code d'accès pour l'utilisateur
+         */
+        async function setupAccessCode() {
+            const code = newAccessCodeInput.value.trim();
+            
+            if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+                showToast("Le code doit contenir exactement 6 chiffres.", "error");
+                return;
+            }
+            
+            try {
+                // Vérifie si le code existe déjà
+                const codesCollectionPath = `artifacts/${appId}/accessCodes`;
+                const codeDocRef = doc(db, codesCollectionPath, code);
+                const codeDoc = await getDoc(codeDocRef);
+                
+                if (codeDoc.exists()) {
+                    showToast("Ce code est déjà utilisé. Choisissez-en un autre.", "error");
+                    return;
+                }
+                
+                // Sauvegarde le code dans Firebase
+                await setDoc(codeDocRef, {
+                    userId: userId,
+                    createdAt: serverTimestamp()
+                });
+                
+                // Sauvegarde également dans localStorage
+                localStorage.setItem('accessCode', code);
+                localStorage.setItem('savedUserId', userId);
+                
+                accessCodeDisplay.textContent = code;
+                showToast("Code d'accès configuré avec succès !", "success");
+                toggleModal(codeSetupModal, false);
+                
+            } catch (error) {
+                console.error("Erreur lors de la configuration du code:", error);
+                showToast("Erreur lors de la configuration du code", "error");
+            }
+        }
+
+        /**
+         * Se connecte avec un code d'accès existant
+         */
+        async function loginWithCode() {
+            const code = enterAccessCodeInput.value.trim();
+            
+            if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+                showToast("Le code doit contenir exactement 6 chiffres.", "error");
+                return;
+            }
+            
+            try {
+                // Cherche le userId associé au code
+                const codesCollectionPath = `artifacts/${appId}/accessCodes`;
+                const codeDocRef = doc(db, codesCollectionPath, code);
+                const codeDoc = await getDoc(codeDocRef);
+                
+                if (!codeDoc.exists()) {
+                    showToast("Code incorrect. Vérifiez et réessayez.", "error");
+                    return;
+                }
+                
+                const associatedUserId = codeDoc.data().userId;
+                
+                // Sauvegarde l'userId et le code dans localStorage
+                localStorage.setItem('savedUserId', associatedUserId);
+                localStorage.setItem('accessCode', code);
+                
+                showToast("Connexion réussie ! Rechargement...", "success");
+                toggleModal(useCodeModal, false);
+                
+                // Recharge la page pour utiliser le nouvel userId
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                
+            } catch (error) {
+                console.error("Erreur lors de la connexion avec le code:", error);
+                showToast("Erreur de connexion", "error");
+            }
+        }
+
+        // Listeners pour le système de code d'accès
+        showCodeSetupBtn.addEventListener('click', () => {
+            newAccessCodeInput.value = '120584'; // Pré-rempli avec le code demandé
+            toggleModal(codeSetupModal, true);
+        });
+        
+        useCodeBtn.addEventListener('click', () => {
+            enterAccessCodeInput.value = '';
+            toggleModal(useCodeModal, true);
+        });
+        
+        cancelCodeSetupBtn.addEventListener('click', () => {
+            toggleModal(codeSetupModal, false);
+        });
+        
+        confirmCodeSetupBtn.addEventListener('click', setupAccessCode);
+        
+        cancelUseCodeBtn.addEventListener('click', () => {
+            toggleModal(useCodeModal, false);
+        });
+        
+        confirmUseCodeBtn.addEventListener('click', loginWithCode);
+        
+        codeSetupModal.addEventListener('click', (e) => {
+            if (e.target === codeSetupModal) {
+                toggleModal(codeSetupModal, false);
+            }
+        });
+        
+        useCodeModal.addEventListener('click', (e) => {
+            if (e.target === useCodeModal) {
+                toggleModal(useCodeModal, false);
+            }
+        });
 
         /**
          * Restaure un ancien compte utilisateur
