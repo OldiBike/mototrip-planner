@@ -1,0 +1,24 @@
+# Fichiers système macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Fichiers système Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.swp
+*~
+
+# Fichiers IDE
+.vscode/
+.idea/
+
+# Node modules (si vous ajoutez des outils de build plus tard)
+node_modules/
