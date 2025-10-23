@@ -1735,6 +1735,12 @@
                 // 2. Récupère tous les hôtels de l'utilisateur
                 const allHotels = await getAllUserHotels();
                 
+                if (allHotels.length === 0) {
+                    searchLoader.classList.add('hidden');
+                    noResults.classList.remove('hidden');
+                    return;
+                }
+                
                 // 3. Pour chaque hôtel, géolocalise et calcule la distance
                 const hotelsWithDistance = [];
                 
@@ -1748,7 +1754,8 @@
                             hotelLocation.lng
                         );
                         
-                        if (distance <= 20) {
+                        // Vérifie que la distance est valide et dans le rayon de 20km
+                        if (!isNaN(distance) && distance >= 0 && distance <= 20) {
                             hotelsWithDistance.push({
                                 ...hotel,
                                 distance: distance,
@@ -1756,7 +1763,8 @@
                             });
                         }
                     } catch (error) {
-                        console.log(`Impossible de géolocaliser ${hotel.city}`);
+                        console.log(`Impossible de géolocaliser ${hotel.city}:`, error.message);
+                        // Ne pas ajouter l'hôtel si la géolocalisation échoue
                     }
                 }
                 
@@ -1808,7 +1816,7 @@
             } catch (error) {
                 console.error("Erreur lors de la recherche:", error);
                 searchLoader.classList.add('hidden');
-                showToast("Erreur lors de la géolocalisation de la ville.", "error");
+                showToast("Ville introuvable. Vérifiez l'orthographe.", "error");
             }
         }
 
@@ -1836,6 +1844,9 @@
         const performSearchBtn = document.getElementById('perform-search-btn');
         const searchCityInput = document.getElementById('search-city-input');
         
+        // Variable pour stocker l'autocomplétion
+        let searchCityAutocomplete = null;
+        
         searchNearbyHotelsBtn.addEventListener('click', () => {
             // Réinitialise la modale
             document.getElementById('search-city-input').value = '';
@@ -1844,6 +1855,25 @@
             document.getElementById('search-loader').classList.add('hidden');
             
             toggleModal(nearbyHotelsModal, true);
+            
+            // Initialise l'autocomplétion Google Places si pas encore fait
+            if (!searchCityAutocomplete) {
+                searchCityAutocomplete = new google.maps.places.Autocomplete(searchCityInput, {
+                    types: ['(cities)']
+                    // Pas de restriction géographique pour couvrir toute l'Europe
+                });
+                
+                // Listener pour quand un lieu est sélectionné
+                searchCityAutocomplete.addListener('place_changed', () => {
+                    const place = searchCityAutocomplete.getPlace();
+                    if (place.geometry) {
+                        // Auto-lance la recherche après sélection
+                        setTimeout(() => {
+                            performSearchBtn.click();
+                        }, 100);
+                    }
+                });
+            }
         });
         
         closeNearbyHotelsBtn.addEventListener('click', () => {
