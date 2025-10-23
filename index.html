@@ -1046,6 +1046,9 @@
                     checkForLocalStorageData();
                     
                     loadTrips();
+                    
+                    // Migration automatique des anciennes photos
+                    migrateOldMediaPhotos();
                 } else {
                     userId = null;
                     document.getElementById('userIdDisplay').textContent = "Non connecté";
@@ -1106,7 +1109,62 @@
                 messagingSenderId: "1080042188681",
                 appId: "1:1080042188681:web:335bc72f4ae5b3a9f7fb58",
                 measurementId: "G-4XMMVPSY72"
-            };
+            }
+        /**
+         * Détecte et migre automatiquement les anciennes photos vers la nouvelle structure
+         */
+        async function migrateOldMediaPhotos() {
+            if (!userId) return;
+            
+            try {
+                const tripsQuery = query(collection(db, `artifacts/${appId}/users/${userId}/trips`));
+                const tripsSnapshot = await getDocs(tripsQuery);
+                
+                let migrated = 0;
+                
+                for (const tripDoc of tripsSnapshot.docs) {
+                    const tripId = tripDoc.id;
+                    const oldMediaQuery = query(
+                        collection(db, `artifacts/${appId}/users/${userId}/trips/${tripId}/media`),
+                        where('type', '==', 'hotel')
+                    );
+                    
+                    const oldMediaSnapshot = await getDocs(oldMediaQuery);
+                    
+                    for (const mediaDoc of oldMediaSnapshot.docs) {
+                        const photo = mediaDoc.data();
+                        
+                        if (photo.linkedHotelName && !photo.hotelName) {
+                            try {
+                                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/media`), {
+                                    type: 'hotel',
+                                    fileName: photo.fileName,
+                                    storagePath: photo.storagePath,
+                                    downloadURL: photo.downloadURL,
+                                    hotelName: photo.linkedHotelName,
+                                    linkedDayId: photo.linkedDayId,
+                                    fileSize: photo.fileSize || 0,
+                                    uploadedAt: photo.uploadedAt || serverTimestamp()
+                                });
+                                
+                                await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/trips/${tripId}/media/${mediaDoc.id}`));
+                                migrated++;
+                            } catch (error) {
+                                console.error('Erreur migration photo:', error);
+                            }
+                        }
+                    }
+                }
+                
+                if (migrated > 0) {
+                    console.log(`✅ Migration: ${migrated} photo(s) migrées`);
+                }
+                
+            } catch (error) {
+                console.error('Erreur migration:', error);
+            }
+        }
+;
 
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
@@ -3090,18 +3148,24 @@
          */
         async function countHotelPhotos(dayId) {
             try {
+                // Récupère le nom de l'hôtel
+                const dayDoc = await getDoc(doc(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days/${dayId}`));
+                if (!dayDoc.exists()) return 0;
+                
+                const hotelName = dayDoc.data().hotelName;
+                if (!hotelName) return 0;
+                
+                // Compte les photos globales pour cet hôtel
                 const mediaQuery = query(
-                    collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
+                    collection(db, `artifacts/${appId}/users/${userId}/media`),
                     where('type', '==', 'hotel'),
-                    where('linkedDayId', '==', dayId)
+                    where('hotelName', '==', hotelName)
                 );
                 
                 const snapshot = await getDocs(mediaQuery);
                 const count = snapshot.size;
                 
-                // Mise en cache
                 hotelPhotoCounts[dayId] = count;
-                
                 return count;
             } catch (error) {
                 console.error("Erreur lors du comptage des photos:", error);
