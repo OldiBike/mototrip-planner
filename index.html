@@ -1141,20 +1141,6 @@
         }
 
         /**
-         * Point d'entrée de l'application. Vérifie la configuration.
-         */
-        function startApp() {
-            // La configuration est maintenant directement dans le code.
-            const firebaseConfig = {
-                apiKey: "AIzaSyA6h4eD-H9p1iFK8tf-2QFS-PzVcjGmGOo",
-                authDomain: "mototrip-63c76.firebaseapp.com",
-                projectId: "mototrip-63c76",
-                storageBucket: "mototrip-63c76.firebasestorage.app",
-                messagingSenderId: "1080042188681",
-                appId: "1:1080042188681:web:335bc72f4ae5b3a9f7fb58",
-                measurementId: "G-4XMMVPSY72"
-            }
-        /**
          * Détecte et migre automatiquement les anciennes photos vers la nouvelle structure
          */
         async function migrateOldMediaPhotos() {
@@ -1208,7 +1194,21 @@
                 console.error('Erreur migration:', error);
             }
         }
-;
+
+        /**
+         * Point d'entrée de l'application. Vérifie la configuration.
+         */
+        function startApp() {
+            // La configuration est maintenant directement dans le code.
+            const firebaseConfig = {
+                apiKey: "AIzaSyA6h4eD-H9p1iFK8tf-2QFS-PzVcjGmGOo",
+                authDomain: "mototrip-63c76.firebaseapp.com",
+                projectId: "mototrip-63c76",
+                storageBucket: "mototrip-63c76.firebasestorage.app",
+                messagingSenderId: "1080042188681",
+                appId: "1:1080042188681:web:335bc72f4ae5b3a9f7fb58",
+                measurementId: "G-4XMMVPSY72"
+            };
 
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
