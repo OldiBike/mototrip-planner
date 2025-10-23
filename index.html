@@ -605,9 +605,6 @@
         const addDayModal = document.getElementById('add-day-modal');
         const addDayModalBtn = document.getElementById('add-day-modal-btn');
         const cancelAddDayBtn = document.getElementById('cancel-add-day-btn');
-        const adaptedListModal = document.getElementById('adapted-list-modal');
-        const generateListBtn = document.getElementById('generate-list-btn');
-        const closeAdaptedListBtn = document.getElementById('close-adapted-list-btn');
         const reassignDayModal = document.getElementById('reassign-day-modal');
         const cancelReassignBtn = document.getElementById('cancel-reassign-btn');
         const copyDayBtn = document.getElementById('copy-day-btn');
@@ -1368,8 +1365,6 @@
         cancelAddDayBtn.addEventListener('click', () => {
             toggleModal(addDayModal, false);
         });
-        generateListBtn.addEventListener('click', generateAdaptedList);
-        closeAdaptedListBtn.addEventListener('click', () => toggleModal(adaptedListModal, false));
 
         // Listeners pour la modale de ré-attribution
         cancelReassignBtn.addEventListener('click', () => toggleModal(reassignDayModal, false));
@@ -1377,7 +1372,7 @@
         moveDayBtn.addEventListener('click', () => reassignDay('move'));
 
         // Ferme les modales en cliquant sur le fond
-        [addDayModal, adaptedListModal, reassignDayModal].forEach(modal => {
+        [addDayModal, reassignDayModal].forEach(modal => {
             modal.addEventListener('click', (e) => {
                 // Ferme la modale de ré-attribution
                 if (e.target === reassignDayModal) {
