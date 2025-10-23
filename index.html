@@ -3282,50 +3282,6 @@
                 console.error("Erreur lors de l'ouverture de la lightbox:", error);
                 showToast("Erreur lors du chargement des photos.", "error");
             }
-        }/days/${dayId}`));
-                if (!dayDoc.exists()) {
-                    showToast("Étape introuvable.", "error");
-                    return;
-                }
-                
-                const dayData = dayDoc.data();
-                
-                // Récupère les photos
-                const mediaQuery = query(
-                    collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
-                    where('type', '==', 'hotel'),
-                    where('linkedDayId', '==', dayId),
-                    orderBy('uploadedAt', 'asc')
-                );
-                
-                const snapshot = await getDocs(mediaQuery);
-                
-                if (snapshot.empty) {
-                    showToast("Aucune photo pour cet hôtel.", "error");
-                    return;
-                }
-                
-                currentLightboxPhotos = [];
-                snapshot.forEach(doc => {
-                    currentLightboxPhotos.push({ id: doc.id, ...doc.data() });
-                });
-                
-                currentLightboxIndex = 0;
-                
-                // Met à jour l'en-tête
-                document.getElementById('lightbox-hotel-name').textContent = dayData.hotelName;
-                document.getElementById('lightbox-day-name').textContent = `${dayData.dayName}${dayData.city ? ' • ' + dayData.city : ''}`;
-                
-                // Affiche la première photo
-                updateLightboxDisplay();
-                
-                // Ouvre la modale
-                toggleModal(document.getElementById('hotel-lightbox-modal'), true);
-                
-            } catch (error) {
-                console.error("Erreur lors de l'ouverture de la lightbox:", error);
-                showToast("Erreur lors du chargement des photos.", "error");
-            }
         }
 
         /**
