@@ -592,7 +592,6 @@
         const migrationSuccess = document.getElementById('migration-success');
         const tripsListEl = document.getElementById('trips-list');
         const daysListEl = document.getElementById('days-list');
-        const adapterChecklistEl = document.getElementById('adapter-checklist');
         const addTripForm = document.getElementById('add-trip-form');
         const tripNameInput = document.getElementById('trip-name-input');
         const addTripButton = document.querySelector('#add-trip-form button');
@@ -986,12 +985,10 @@
 
             unsubscribeDays = onSnapshot(q, (snapshot) => {
                 daysListEl.innerHTML = '';
-                adapterChecklistEl.innerHTML = '';
                 allDaysCache = []; // Réinitialise le cache
 
                 if (snapshot.empty) {
                     daysListEl.innerHTML = '<p class="text-gray-500">Aucune étape pour ce voyage. Ajoutez-en une !</p>';
-                    adapterChecklistEl.innerHTML = '<p class="text-gray-500">Aucune étape à adapter.</p>';
                     return;
                 }
 
@@ -1039,15 +1036,6 @@
                     dayEl.querySelector('.edit-day-btn').addEventListener('click', () => openEditDayModal(day.id));
                     dayEl.querySelector('.reassign-day-btn').addEventListener('click', () => openReassignDayModal(day.id));
                     daysListEl.appendChild(dayEl);
-
-                    // Affiche dans la checklist de l'adaptateur
-                    const checkEl = document.createElement('label');
-                    checkEl.className = 'flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer';
-                    checkEl.innerHTML = `
-                        <input type="checkbox" data-day-index="${allDaysCache.length - 1}" class="adapter-check h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
-                        <span class="ml-3 font-medium text-gray-800">${day.dayName}: <span class="font-normal text-gray-600">${day.hotelName}</span></span>
-                    `;
-                    adapterChecklistEl.appendChild(checkEl);
                 });
 
                 // Mise à jour du calculateur de coût
