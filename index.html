@@ -2567,14 +2567,12 @@
                     mediaQuery = query(
                         collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
                         where('type', '==', 'general'),
-                        where('tags', 'array-contains', filterTag),
-                        orderBy('uploadedAt', 'desc')
+                        where('tags', 'array-contains', filterTag)
                     );
                 } else {
                     mediaQuery = query(
                         collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
-                        where('type', '==', 'general'),
-                        orderBy('uploadedAt', 'desc')
+                        where('type', '==', 'general')
                     );
                 }
                 
@@ -2590,9 +2588,21 @@
                 gridContainer.innerHTML = '';
                 allGeneralPhotos = [];
                 
+                // Collecte toutes les photos
                 snapshot.forEach(doc => {
                     const photo = { id: doc.id, ...doc.data() };
                     allGeneralPhotos.push(photo);
+                });
+                
+                // Trie par date côté client (du plus récent au plus ancien)
+                allGeneralPhotos.sort((a, b) => {
+                    const dateA = a.uploadedAt?.toMillis() || 0;
+                    const dateB = b.uploadedAt?.toMillis() || 0;
+                    return dateB - dateA;
+                });
+                
+                // Affiche les photos triées
+                allGeneralPhotos.forEach(photo => {
                     
                     const photoCard = document.createElement('div');
                     photoCard.className = 'relative group bg-gray-100 rounded-lg overflow-hidden aspect-square';
@@ -2895,8 +2905,7 @@
             try {
                 const mediaQuery = query(
                     collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
-                    where('type', '==', 'hotel'),
-                    orderBy('uploadedAt', 'desc')
+                    where('type', '==', 'hotel')
                 );
                 
                 const snapshot = await getDocs(mediaQuery);
@@ -2911,12 +2920,25 @@
                 listContainer.innerHTML = '';
                 allHotelPhotos = [];
                 
-                // Groupe les photos par dayId
-                const photosByDay = {};
-                
+                // Collecte toutes les photos
+                const allPhotos = [];
                 snapshot.forEach(doc => {
                     const photo = { id: doc.id, ...doc.data() };
                     allHotelPhotos.push(photo);
+                    allPhotos.push(photo);
+                });
+                
+                // Trie par date côté client (du plus récent au plus ancien)
+                allPhotos.sort((a, b) => {
+                    const dateA = a.uploadedAt?.toMillis() || 0;
+                    const dateB = b.uploadedAt?.toMillis() || 0;
+                    return dateB - dateA;
+                });
+                
+                // Groupe les photos triées par dayId
+                const photosByDay = {};
+                
+                allPhotos.forEach(photo => {
                     
                     // Filtre si nécessaire
                     if (filterHotelName && !photo.linkedHotelName.toLowerCase().includes(filterHotelName.toLowerCase())) {
