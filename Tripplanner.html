@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Importation de l'icône (Font Awesome) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3RWUfHKxEAZJjkT4kFVd6F1P9_obMnr0&libraries=places"></script>
     <style>
         /* Police Inter */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -193,7 +195,13 @@
     <!-- Modale pour Ajouter une Étape -->
     <div id="add-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
         <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95 my-8">
-            <h3 class="text-2xl font-semibold mb-6">Ajouter une nouvelle étape</h3>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Ajouter une nouvelle étape</h3>
+                <button type="button" id="search-nearby-hotels-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2" title="Rechercher des hôtels à proximité">
+                    <i class="fas fa-search"></i>
+                    <span class="hidden sm:inline">Hôtels à proximité</span>
+                </button>
+            </div>
             <form id="add-day-form">
                 <input type="hidden" id="editing-day-id"> <!-- Pour le mode édition -->
                 <div class="space-y-4">
@@ -392,6 +400,66 @@
                 </button>
                 <button type="button" id="confirm-restore-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">
                     <i class="fas fa-sync-alt mr-2"></i>Restaurer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale de Recherche d'Hôtels à Proximité -->
+    <div id="nearby-hotels-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl transform scale-95 my-8">
+            <h3 class="text-2xl font-semibold mb-4 text-indigo-600">
+                <i class="fas fa-search mr-2"></i>Rechercher des hôtels à proximité
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Entrez le nom d'une ville pour rechercher les hôtels que vous avez déjà utilisés dans un rayon de 20km.
+            </p>
+            <div class="mb-4">
+                <label for="search-city-input" class="block text-sm font-medium text-gray-700 mb-2">
+                    Ville à rechercher :
+                </label>
+                <div class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="search-city-input" 
+                        placeholder="Ex: Lyon, Besançon..."
+                        class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                    <button type="button" id="perform-search-btn" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 font-medium">
+                        <i class="fas fa-search mr-2"></i>Rechercher
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Zone de résultats -->
+            <div id="search-results" class="hidden">
+                <div class="border-t pt-4 mt-4">
+                    <h4 class="font-semibold text-lg mb-3">Hôtels trouvés à proximité :</h4>
+                    <div id="results-list" class="space-y-2 max-h-96 overflow-y-auto">
+                        <!-- Les résultats seront injectés ici -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Message si aucun résultat -->
+            <div id="no-results" class="hidden border-t pt-4 mt-4">
+                <p class="text-gray-600 text-center py-4">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Aucun hôtel trouvé dans un rayon de 20km autour de cette ville.
+                </p>
+            </div>
+            
+            <!-- Loader -->
+            <div id="search-loader" class="hidden border-t pt-4 mt-4">
+                <div class="flex flex-col items-center justify-center py-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Recherche en cours...</p>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" id="close-nearby-hotels-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Fermer
                 </button>
             </div>
         </div>
@@ -1560,6 +1628,235 @@
             }
             if (e.target === migrationModal) {
                 toggleModal(migrationModal, false);
+            }
+        });
+
+        /**
+         * Récupère tous les hôtels de tous les voyages de l'utilisateur
+         */
+        async function getAllUserHotels() {
+            if (!userId) return [];
+            
+            const tripsCollectionPath = `artifacts/${appId}/users/${userId}/trips`;
+            const tripsQuery = query(collection(db, tripsCollectionPath));
+            const tripsSnapshot = await getDocs(tripsQuery);
+            
+            const hotels = [];
+            
+            // Pour chaque voyage, récupère les étapes
+            for (const tripDoc of tripsSnapshot.docs) {
+                const tripId = tripDoc.id;
+                const tripName = tripDoc.data().name;
+                const daysCollectionPath = `artifacts/${appId}/users/${userId}/trips/${tripId}/days`;
+                const daysQuery = query(collection(db, daysCollectionPath));
+                const daysSnapshot = await getDocs(daysQuery);
+                
+                daysSnapshot.forEach(dayDoc => {
+                    const day = dayDoc.data();
+                    if (day.city && day.hotelName) {
+                        hotels.push({
+                            ...day,
+                            tripId: tripId,
+                            tripName: tripName,
+                            dayId: dayDoc.id
+                        });
+                    }
+                });
+            }
+            
+            return hotels;
+        }
+
+        /**
+         * Calcule la distance entre deux coordonnées (en km)
+         */
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Rayon de la Terre en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        /**
+         * Géolocalise une ville avec Google Maps Geocoding API
+         */
+        async function geocodeCity(cityName) {
+            return new Promise((resolve, reject) => {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ 'address': cityName + ', France' }, (results, status) => {
+                    if (status === 'OK' && results[0]) {
+                        const location = results[0].geometry.location;
+                        resolve({
+                            lat: location.lat(),
+                            lng: location.lng(),
+                            formattedAddress: results[0].formatted_address
+                        });
+                    } else {
+                        reject(new Error('Ville non trouvée'));
+                    }
+                });
+            });
+        }
+
+        /**
+         * Recherche les hôtels à proximité d'une ville
+         */
+        async function searchNearbyHotels() {
+            const cityInput = document.getElementById('search-city-input');
+            const searchLoader = document.getElementById('search-loader');
+            const searchResults = document.getElementById('search-results');
+            const noResults = document.getElementById('no-results');
+            const resultsList = document.getElementById('results-list');
+            const cityName = cityInput.value.trim();
+            
+            if (!cityName) {
+                showToast("Veuillez entrer un nom de ville.", "error");
+                return;
+            }
+            
+            // Affiche le loader
+            searchLoader.classList.remove('hidden');
+            searchResults.classList.add('hidden');
+            noResults.classList.add('hidden');
+            
+            try {
+                // 1. Géolocalise la ville recherchée
+                const searchLocation = await geocodeCity(cityName);
+                
+                // 2. Récupère tous les hôtels de l'utilisateur
+                const allHotels = await getAllUserHotels();
+                
+                // 3. Pour chaque hôtel, géolocalise et calcule la distance
+                const hotelsWithDistance = [];
+                
+                for (const hotel of allHotels) {
+                    try {
+                        const hotelLocation = await geocodeCity(hotel.city);
+                        const distance = calculateDistance(
+                            searchLocation.lat,
+                            searchLocation.lng,
+                            hotelLocation.lat,
+                            hotelLocation.lng
+                        );
+                        
+                        if (distance <= 20) {
+                            hotelsWithDistance.push({
+                                ...hotel,
+                                distance: distance,
+                                location: hotelLocation
+                            });
+                        }
+                    } catch (error) {
+                        console.log(`Impossible de géolocaliser ${hotel.city}`);
+                    }
+                }
+                
+                // 4. Affiche les résultats
+                searchLoader.classList.add('hidden');
+                
+                if (hotelsWithDistance.length === 0) {
+                    noResults.classList.remove('hidden');
+                } else {
+                    // Trie par distance
+                    hotelsWithDistance.sort((a, b) => a.distance - b.distance);
+                    
+                    resultsList.innerHTML = '';
+                    hotelsWithDistance.forEach(hotel => {
+                        const resultEl = document.createElement('div');
+                        resultEl.className = 'bg-gray-50 p-4 rounded-lg hover:bg-gray-100 cursor-pointer border border-gray-200 transition-colors';
+                        resultEl.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <h5 class="font-semibold text-gray-900">${hotel.hotelName}</h5>
+                                    <p class="text-sm text-gray-600">
+                                        <i class="fas fa-map-marker-alt mr-1"></i>${hotel.city}
+                                        <span class="ml-3 text-indigo-600 font-semibold">${hotel.distance.toFixed(1)} km</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        <i class="fas fa-suitcase mr-1"></i>Voyage: ${hotel.tripName}
+                                    </p>
+                                    <p class="text-xs text-gray-600 mt-1">
+                                        Prix: ${hotel.priceDouble.toFixed(2)}€ (Double) / ${hotel.priceSolo.toFixed(2)}€ (Solo)
+                                    </p>
+                                </div>
+                                <button class="ml-4 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">
+                                    <i class="fas fa-check mr-1"></i>Utiliser
+                                </button>
+                            </div>
+                        `;
+                        
+                        // Listener pour utiliser cet hôtel
+                        resultEl.querySelector('button').addEventListener('click', () => {
+                            useSelectedHotel(hotel);
+                        });
+                        
+                        resultsList.appendChild(resultEl);
+                    });
+                    
+                    searchResults.classList.remove('hidden');
+                }
+                
+            } catch (error) {
+                console.error("Erreur lors de la recherche:", error);
+                searchLoader.classList.add('hidden');
+                showToast("Erreur lors de la géolocalisation de la ville.", "error");
+            }
+        }
+
+        /**
+         * Utilise un hôtel sélectionné pour pré-remplir le formulaire
+         */
+        function useSelectedHotel(hotel) {
+            // Ferme la modale de recherche
+            toggleModal(document.getElementById('nearby-hotels-modal'), false);
+            
+            // Pré-remplit les champs du formulaire
+            document.getElementById('day-city').value = hotel.city;
+            document.getElementById('day-hotel-name').value = hotel.hotelName;
+            document.getElementById('day-price-double').value = hotel.priceDouble;
+            document.getElementById('day-price-solo').value = hotel.priceSolo;
+            document.getElementById('day-hotel-link').value = hotel.hotelLink || '';
+            
+            showToast(`✨ Hôtel sélectionné : ${hotel.hotelName} à ${hotel.city}`, "success");
+        }
+
+        // Listeners pour la recherche d'hôtels à proximité
+        const searchNearbyHotelsBtn = document.getElementById('search-nearby-hotels-btn');
+        const nearbyHotelsModal = document.getElementById('nearby-hotels-modal');
+        const closeNearbyHotelsBtn = document.getElementById('close-nearby-hotels-btn');
+        const performSearchBtn = document.getElementById('perform-search-btn');
+        const searchCityInput = document.getElementById('search-city-input');
+        
+        searchNearbyHotelsBtn.addEventListener('click', () => {
+            // Réinitialise la modale
+            document.getElementById('search-city-input').value = '';
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('no-results').classList.add('hidden');
+            document.getElementById('search-loader').classList.add('hidden');
+            
+            toggleModal(nearbyHotelsModal, true);
+        });
+        
+        closeNearbyHotelsBtn.addEventListener('click', () => {
+            toggleModal(nearbyHotelsModal, false);
+        });
+        
+        performSearchBtn.addEventListener('click', searchNearbyHotels);
+        
+        // Recherche aussi avec la touche Entrée
+        searchCityInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchNearbyHotels();
+            }
+        });
+        
+        nearbyHotelsModal.addEventListener('click', (e) => {
+            if (e.target === nearbyHotelsModal) {
+                toggleModal(nearbyHotelsModal, false);
             }
         });
 
