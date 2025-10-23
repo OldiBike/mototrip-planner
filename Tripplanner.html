@@ -243,7 +243,12 @@
 
                     <div>
                         <label for="day-hotel-link" class="block text-sm font-medium text-gray-700">URL Hôtel (RateHawk, etc.)</label>
-                        <input type="url" id="day-hotel-link" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input type="url" id="day-hotel-link" class="block w-full flex-1 rounded-none rounded-l-md px-3 py-2 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+                            <button type="button" id="open-hotel-link-btn" class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" title="Ouvrir le lien dans un nouvel onglet">
+                                <i class="fas fa-external-link-alt text-gray-500"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="flex justify-end gap-4 mt-8">
@@ -1857,6 +1862,21 @@
         nearbyHotelsModal.addEventListener('click', (e) => {
             if (e.target === nearbyHotelsModal) {
                 toggleModal(nearbyHotelsModal, false);
+            }
+        });
+
+        // --- Listener pour le bouton d'ouverture de l'URL de l'hôtel ---
+        const openHotelLinkBtn = document.getElementById('open-hotel-link-btn');
+        openHotelLinkBtn.addEventListener('click', () => {
+            const url = document.getElementById('day-hotel-link').value.trim();
+            if (url) {
+                try {
+                    // Ajoute https:// si manquant pour que le lien s'ouvre correctement
+                    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                    window.open(fullUrl, '_blank');
+                } catch (e) {
+                    showToast("L'URL semble invalide.", "error");
+                }
             }
         });
 
