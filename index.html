@@ -2500,22 +2500,23 @@
                 let uploadedFiles = 0;
                 
                 for (const file of selectedFilesGeneral) {
-                    // Upload vers Storage
+                    // Upload vers Storage (stockage global utilisateur)
                     const timestamp = Date.now();
                     const fileName = `${timestamp}_${file.name}`;
-                    const storageRef = ref(storage, `users/${userId}/trips/${currentTripId}/general/${fileName}`);
+                    const storageRef = ref(storage, `users/${userId}/media/general/${fileName}`);
                     
                     await uploadBytes(storageRef, file);
                     const downloadURL = await getDownloadURL(storageRef);
                     
-                    // Enregistre dans Firestore
-                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`), {
+                    // Enregistre dans Firestore (collection globale utilisateur)
+                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/media`), {
                         type: 'general',
                         fileName: file.name,
                         storagePath: storageRef.fullPath,
                         downloadURL: downloadURL,
                         tags: tags,
                         fileSize: file.size,
+                        assignedTrips: [currentTripId], // Attribution au voyage actuel
                         uploadedAt: serverTimestamp()
                     });
                     
@@ -2561,18 +2562,21 @@
             gridContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">Chargement...</p>';
             
             try {
+                // Requête vers la collection globale utilisateur
                 let mediaQuery;
                 
                 if (filterTag) {
                     mediaQuery = query(
-                        collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
+                        collection(db, `artifacts/${appId}/users/${userId}/media`),
                         where('type', '==', 'general'),
+                        where('assignedTrips', 'array-contains', currentTripId),
                         where('tags', 'array-contains', filterTag)
                     );
                 } else {
                     mediaQuery = query(
-                        collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
-                        where('type', '==', 'general')
+                        collection(db, `artifacts/${appId}/users/${userId}/media`),
+                        where('type', '==', 'general'),
+                        where('assignedTrips', 'array-contains', currentTripId)
                     );
                 }
                 
@@ -2838,22 +2842,23 @@
                 let uploadedFiles = 0;
                 
                 for (const file of selectedFilesHotel) {
-                    // Upload vers Storage
+                    // Upload vers Storage (stockage global par nom d'hôtel)
                     const timestamp = Date.now();
                     const fileName = `${timestamp}_${file.name}`;
-                    const storageRef = ref(storage, `users/${userId}/trips/${currentTripId}/hotels/${selectedHotelForUpload.dayId}/${fileName}`);
+                    const hotelSlug = selectedHotelForUpload.hotelName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    const storageRef = ref(storage, `users/${userId}/media/hotels/${hotelSlug}/${fileName}`);
                     
                     await uploadBytes(storageRef, file);
                     const downloadURL = await getDownloadURL(storageRef);
                     
-                    // Enregistre dans Firestore
-                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`), {
+                    // Enregistre dans Firestore (collection globale utilisateur)
+                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/media`), {
                         type: 'hotel',
                         fileName: file.name,
                         storagePath: storageRef.fullPath,
                         downloadURL: downloadURL,
-                        linkedDayId: selectedHotelForUpload.dayId,
-                        linkedHotelName: selectedHotelForUpload.hotelName,
+                        hotelName: selectedHotelForUpload.hotelName, // Identifiant unique
+                        linkedDayId: selectedHotelForUpload.dayId, // Pour le lien avec l'étape actuelle
                         fileSize: file.size,
                         uploadedAt: serverTimestamp()
                     });
@@ -2895,6 +2900,7 @@
 
         /**
          * Charge et affiche les photos d'hôtels groupées par étape
+         * NOUVEAU : Partage automatique des photos par nom d'hôtel
          */
         async function loadHotelPhotos(filterHotelName = null) {
             const listContainer = document.getElementById('hotels-photos-list');
@@ -2903,8 +2909,43 @@
             listContainer.innerHTML = '<p class="text-center text-gray-500">Chargement...</p>';
             
             try {
+                // Récupère toutes les étapes du voyage actuel
+                const daysQuery = query(
+                    collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days`)
+                );
+                const daysSnapshot = await getDocs(daysQuery);
+                
+                if (daysSnapshot.empty) {
+                    listContainer.innerHTML = '';
+                    noPhotosMessage.classList.remove('hidden');
+                    return;
+                }
+                
+                // Extrait les noms d'hôtels du voyage actuel
+                const hotelNamesInTrip = new Set();
+                const daysByHotelName = {}; // {hotelName: [dayData]}
+                
+                daysSnapshot.forEach(doc => {
+                    const day = { id: doc.id, ...doc.data() };
+                    const hotelName = day.hotelName;
+                    if (hotelName) {
+                        hotelNamesInTrip.add(hotelName);
+                        if (!daysByHotelName[hotelName]) {
+                            daysByHotelName[hotelName] = [];
+                        }
+                        daysByHotelName[hotelName].push(day);
+                    }
+                });
+                
+                if (hotelNamesInTrip.size === 0) {
+                    listContainer.innerHTML = '';
+                    noPhotosMessage.classList.remove('hidden');
+                    return;
+                }
+                
+                // Charge TOUTES les photos d'hôtels de l'utilisateur (collection globale)
                 const mediaQuery = query(
-                    collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/media`),
+                    collection(db, `artifacts/${appId}/users/${userId}/media`),
                     where('type', '==', 'hotel')
                 );
                 
@@ -2935,53 +2976,57 @@
                     return dateB - dateA;
                 });
                 
-                // Groupe les photos triées par dayId
-                const photosByDay = {};
+                // Groupe les photos par nom d'hôtel (en filtrant uniquement les hôtels du voyage actuel)
+                const photosByHotelName = {};
                 
                 allPhotos.forEach(photo => {
+                    const hotelName = photo.hotelName;
                     
-                    // Filtre si nécessaire
-                    if (filterHotelName && !photo.linkedHotelName.toLowerCase().includes(filterHotelName.toLowerCase())) {
+                    // Ne garde que les photos des hôtels présents dans ce voyage
+                    if (!hotelNamesInTrip.has(hotelName)) {
                         return;
                     }
                     
-                    if (!photosByDay[photo.linkedDayId]) {
-                        photosByDay[photo.linkedDayId] = {
-                            hotelName: photo.linkedHotelName,
-                            photos: []
-                        };
+                    // Filtre si nécessaire
+                    if (filterHotelName && !hotelName.toLowerCase().includes(filterHotelName.toLowerCase())) {
+                        return;
                     }
-                    photosByDay[photo.linkedDayId].photos.push(photo);
+                    
+                    if (!photosByHotelName[hotelName]) {
+                        photosByHotelName[hotelName] = [];
+                    }
+                    photosByHotelName[hotelName].push(photo);
                 });
                 
-                // Affiche chaque groupe
-                for (const [dayId, data] of Object.entries(photosByDay)) {
+                // Affiche chaque groupe (par nom d'hôtel)
+                for (const [hotelName, photos] of Object.entries(photosByHotelName)) {
                     const hotelSection = document.createElement('div');
                     hotelSection.className = 'bg-gray-50 border border-gray-200 rounded-lg p-4';
                     
-                    // Récupère les infos de l'étape
-                    const dayDoc = await getDoc(doc(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days/${dayId}`));
-                    const dayData = dayDoc.exists() ? dayDoc.data() : { dayName: 'Étape inconnue', city: '' };
+                    // Récupère les infos des étapes qui utilisent cet hôtel
+                    const daysWithThisHotel = daysByHotelName[hotelName] || [];
+                    const firstDay = daysWithThisHotel[0] || { dayName: 'Étape inconnue', city: '' };
                     
                     hotelSection.innerHTML = `
                         <div class="mb-3">
                             <h4 class="font-semibold text-lg text-gray-900">
-                                <i class="fas fa-map-marker-alt text-indigo-500 mr-2"></i>
-                                ${dayData.dayName}${dayData.city ? ' • ' + dayData.city : ''}
+                                <i class="fas fa-hotel text-indigo-500 mr-2"></i>
+                                ${hotelName}
                             </h4>
                             <p class="text-sm text-gray-600">
-                                <i class="fas fa-hotel text-gray-400 mr-2"></i>
-                                ${data.hotelName}
+                                <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
+                                ${daysWithThisHotel.map(d => `${d.dayName}${d.city ? ' • ' + d.city : ''}`).join(' | ')}
                             </p>
+                            ${daysWithThisHotel.length > 1 ? `<p class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle mr-1"></i>Photos partagées entre ${daysWithThisHotel.length} étapes</p>` : ''}
                         </div>
                         
                         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                            ${data.photos.map(photo => `
+                            ${photos.map(photo => `
                                 <div class="relative group bg-white rounded-lg overflow-hidden aspect-square border border-gray-200">
                                     <img src="${photo.downloadURL}" 
                                          alt="${photo.fileName}" 
                                          class="w-full h-full object-cover cursor-pointer"
-                                         data-day-id="${dayId}">
+                                         data-hotel-name="${hotelName}">
                                     
                                     <!-- Boutons d'action -->
                                     <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3003,7 +3048,7 @@
                         </div>
                         
                         <p class="text-xs text-gray-500 mt-3 text-right">
-                            ${data.photos.length} photo${data.photos.length > 1 ? 's' : ''}
+                            ${photos.length} photo${photos.length > 1 ? 's' : ''}
                         </p>
                     `;
                     
@@ -3026,10 +3071,10 @@
                 });
                 
                 // Listener pour ouvrir la lightbox
-                document.querySelectorAll('[data-day-id]').forEach(img => {
+                document.querySelectorAll('[data-hotel-name]').forEach(img => {
                     if (img.tagName === 'IMG') {
                         img.addEventListener('click', () => {
-                            openHotelLightbox(img.dataset.dayId);
+                            openHotelLightboxByName(img.dataset.hotelName);
                         });
                     }
                 });
