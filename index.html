@@ -177,16 +177,20 @@
                     </div>
                 </div>
 
-                <!-- Section de l'Outil d'Adaptation -->
+                <!-- Section Liste Hôtels RateHawk -->
                 <div id="adapter-container" class="bg-white p-6 rounded-lg shadow-md hidden">
-                    <h2 class="text-2xl font-semibold mb-4">Outil d'Adaptation</h2>
-                    <p class="text-gray-600 mb-4">Cochez les étapes que vous souhaitez inclure dans votre nouveau voyage, puis générez la liste.</p>
-                    <div id="adapter-checklist" class="space-y-3 mb-4">
-                        <!-- La checklist des étapes sera injectée ici -->
+                    <h2 class="text-2xl font-semibold mb-4">Liste Hôtels RateHawk</h2>
+                    <p class="text-gray-600 mb-4">Enregistrez l'URL de votre sélection d'hôtels RateHawk pour ce voyage.</p>
+                    <div class="flex flex-col gap-3">
+                        <button id="encode-hotel-list-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-semibold flex items-center justify-center">
+                            <i class="fas fa-edit mr-2"></i>
+                            Encoder liste hôtel
+                        </button>
+                        <button id="view-hotel-list-btn" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 font-semibold flex items-center justify-center" disabled>
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            Consulter liste hôtel
+                        </button>
                     </div>
-                    <button id="generate-list-btn" class="w-full bg-purple-600 text-white px-4 py-3 rounded-md hover:bg-purple-700 font-semibold">
-                        Générer la liste
-                    </button>
                 </div>
             </div>
         </div>
@@ -259,16 +263,33 @@
         </div>
     </div>
 
-    <!-- Modale pour la Liste Adaptée -->
-    <div id="adapted-list-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
-        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl transform scale-95 my-8">
-            <h3 class="text-2xl font-semibold mb-6">Votre voyage adapté</h3>
-            <div id="adapted-list-content" class="space-y-4">
-                <!-- La liste générée sera injectée ici -->
+    <!-- Modale pour Encoder l'URL de la Liste RateHawk -->
+    <div id="encode-hotel-list-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95">
+            <h3 class="text-2xl font-semibold mb-4 text-indigo-600">
+                <i class="fas fa-edit mr-2"></i>Encoder l'URL de la liste RateHawk
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Collez ici l'URL de votre sélection d'hôtels RateHawk pour ce voyage.
+            </p>
+            <div class="mb-6">
+                <label for="ratehawk-url-input" class="block text-sm font-medium text-gray-700 mb-2">
+                    URL RateHawk :
+                </label>
+                <input 
+                    type="url" 
+                    id="ratehawk-url-input" 
+                    placeholder="https://www.ratehawk.com/..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
             </div>
-             <p class="text-sm text-gray-500 mt-6">Ceci est la liste des étapes et hôtels pour votre voyage personnalisé.</p>
-            <div class="flex justify-end mt-8">
-                <button type="button" id="close-adapted-list-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">Fermer</button>
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-encode-hotel-list-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="save-hotel-list-url-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium">
+                    <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
             </div>
         </div>
     </div>
@@ -915,7 +936,7 @@
         /**
          * Sélectionne un voyage et charge ses étapes.
          */
-        function selectTrip(tripId, tripName) {
+        async function selectTrip(tripId, tripName) {
             currentTripId = tripId;
             currentTripName = tripName;
 
@@ -933,6 +954,23 @@
                     child.classList.add('hover:bg-gray-100');
                 }
             });
+            
+            // Charge le prix de vente et l'URL RateHawk sauvegardés pour ce voyage
+            try {
+                const tripDocPath = `artifacts/${appId}/users/${userId}/trips/${tripId}`;
+                const tripDoc = await getDoc(doc(db, tripDocPath));
+                if (tripDoc.exists()) {
+                    const tripData = tripDoc.data();
+                    const salePricePP = tripData.salePricePerPerson || 0;
+                    document.getElementById('sale-price-pp-input').value = salePricePP > 0 ? salePricePP : '';
+                    
+                    // Charge l'URL RateHawk
+                    currentRatehawkUrl = tripData.ratehawkListUrl || null;
+                    viewHotelListBtn.disabled = !currentRatehawkUrl;
+                }
+            } catch (error) {
+                console.error("Erreur lors du chargement des données du voyage:", error);
+            }
             
             loadDays();
         }
@@ -1290,10 +1328,32 @@
             }
         });
 
-        // --- Listener pour le prix de vente par personne (recalcul en temps réel) ---
+        // --- Listener pour le prix de vente par personne (recalcul en temps réel + sauvegarde) ---
         const salePricePPInput = document.getElementById('sale-price-pp-input');
+        let saveSalePriceTimeout = null;
+        
         salePricePPInput.addEventListener('input', () => {
             updateCostCalculator();
+            
+            // Sauvegarde automatique avec un délai (debounce)
+            if (saveSalePriceTimeout) {
+                clearTimeout(saveSalePriceTimeout);
+            }
+            
+            saveSalePriceTimeout = setTimeout(async () => {
+                if (currentTripId && userId) {
+                    const salePricePP = parseFloat(salePricePPInput.value) || 0;
+                    try {
+                        const tripDocPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}`;
+                        await setDoc(doc(db, tripDocPath), {
+                            salePricePerPerson: salePricePP
+                        }, { merge: true });
+                        console.log('Prix de vente sauvegardé:', salePricePP);
+                    } catch (error) {
+                        console.error("Erreur lors de la sauvegarde du prix de vente:", error);
+                    }
+                }
+            }, 1000); // Sauvegarde après 1 seconde d'inactivité
         });
 
         // --- Ajout des listeners pour les modales ---
@@ -1908,6 +1968,77 @@
                 } catch (e) {
                     showToast("L'URL semble invalide.", "error");
                 }
+            }
+        });
+
+        // --- Gestion de l'URL de la liste RateHawk ---
+        const encodeHotelListBtn = document.getElementById('encode-hotel-list-btn');
+        const viewHotelListBtn = document.getElementById('view-hotel-list-btn');
+        const encodeHotelListModal = document.getElementById('encode-hotel-list-modal');
+        const cancelEncodeHotelListBtn = document.getElementById('cancel-encode-hotel-list-btn');
+        const saveHotelListUrlBtn = document.getElementById('save-hotel-list-url-btn');
+        const ratehawkUrlInput = document.getElementById('ratehawk-url-input');
+        
+        let currentRatehawkUrl = null;
+        
+        // Ouvre la modale pour encoder l'URL RateHawk
+        encodeHotelListBtn.addEventListener('click', () => {
+            ratehawkUrlInput.value = currentRatehawkUrl || '';
+            toggleModal(encodeHotelListModal, true);
+        });
+        
+        // Annule l'encodage
+        cancelEncodeHotelListBtn.addEventListener('click', () => {
+            toggleModal(encodeHotelListModal, false);
+        });
+        
+        // Sauvegarde l'URL RateHawk
+        saveHotelListUrlBtn.addEventListener('click', async () => {
+            const url = ratehawkUrlInput.value.trim();
+            
+            if (!url) {
+                showToast("Veuillez entrer une URL.", "error");
+                return;
+            }
+            
+            if (!userId || !currentTripId) {
+                showToast("Erreur: Voyage non sélectionné.", "error");
+                return;
+            }
+            
+            try {
+                const tripDocPath = `artifacts/${appId}/users/${userId}/trips/${currentTripId}`;
+                await setDoc(doc(db, tripDocPath), {
+                    ratehawkListUrl: url
+                }, { merge: true });
+                
+                currentRatehawkUrl = url;
+                viewHotelListBtn.disabled = false;
+                
+                showToast("URL de la liste RateHawk enregistrée !", "success");
+                toggleModal(encodeHotelListModal, false);
+            } catch (error) {
+                console.error("Erreur lors de la sauvegarde de l'URL:", error);
+                showToast("Erreur lors de la sauvegarde.", "error");
+            }
+        });
+        
+        // Ouvre l'URL RateHawk dans un nouvel onglet
+        viewHotelListBtn.addEventListener('click', () => {
+            if (currentRatehawkUrl) {
+                try {
+                    const fullUrl = currentRatehawkUrl.startsWith('http') ? currentRatehawkUrl : `https://${currentRatehawkUrl}`;
+                    window.open(fullUrl, '_blank');
+                } catch (e) {
+                    showToast("Erreur lors de l'ouverture de l'URL.", "error");
+                }
+            }
+        });
+        
+        // Ferme la modale en cliquant sur le fond
+        encodeHotelListModal.addEventListener('click', (e) => {
+            if (e.target === encodeHotelListModal) {
+                toggleModal(encodeHotelListModal, false);
             }
         });
 
