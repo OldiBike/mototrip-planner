@@ -1692,7 +1692,8 @@
         async function geocodeCity(cityName) {
             return new Promise((resolve, reject) => {
                 const geocoder = new google.maps.Geocoder();
-                geocoder.geocode({ 'address': cityName + ', France' }, (results, status) => {
+                // Ne pas ajouter de pays spécifique pour couvrir toute l'Europe
+                geocoder.geocode({ 'address': cityName }, (results, status) => {
                     if (status === 'OK' && results[0]) {
                         const location = results[0].geometry.location;
                         resolve({
