@@ -575,13 +575,21 @@
                         </div>
                     </div>
 
-                    <!-- Bouton upload -->
-                    <div>
-                        <input type="file" id="upload-general-input" accept="image/*" multiple class="hidden">
-                        <button id="upload-general-btn" class="w-full bg-purple-600 text-white px-4 py-3 rounded-md hover:bg-purple-700 font-medium flex items-center justify-center gap-2">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            Ajouter des photos (cols, routes, POI)
-                        </button>
+                    <!-- Boutons -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <input type="file" id="upload-general-input" accept="image/*" multiple class="hidden">
+                            <button id="upload-general-btn" class="w-full bg-purple-600 text-white px-4 py-3 rounded-md hover:bg-purple-700 font-medium flex items-center justify-center gap-2">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                Ajouter des photos
+                            </button>
+                        </div>
+                        <div>
+                            <button id="browse-library-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
+                                <i class="fas fa-book mr-2"></i>
+                                Bibliothèque complète
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Tags populaires -->
@@ -802,6 +810,40 @@
         </div>
     </div>
 
+
+    <!-- Modale d'Attribution Photo POI -->
+    <div id="assign-photo-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-[60]">
+        <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <h3 class="text-xl font-semibold mb-4 text-purple-600">
+                <i class="fas fa-plus-circle mr-2"></i>Ajouter au voyage
+            </h3>
+            
+            <p class="text-gray-700 mb-4">
+                Voulez-vous ajouter cette photo au voyage <strong id="assign-trip-name"></strong> ?
+            </p>
+
+            <div class="mb-4">
+                <img id="assign-photo-preview" src="" alt="" class="w-full h-48 object-cover rounded-lg border border-gray-300">
+            </div>
+
+            <div class="mb-4">
+                <p class="text-sm text-gray-600">
+                    <i class="fas fa-tags mr-2"></i>Tags : <span id="assign-photo-tags" class="font-semibold"></span>
+                </p>
+            </div>
+
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-assign-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="button" id="confirm-assign-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
+                    <i class="fas fa-check mr-2"></i>Ajouter
+                </button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Importation de Firebase -->
     <script type="module">
         // Importations Firebase
@@ -858,6 +900,8 @@
         let currentLightboxPhotos = []; // Photos dans la lightbox
         let currentLightboxIndex = 0; // Index actuel dans la lightbox
         let hotelPhotoCounts = {}; // Cache des compteurs {dayId: count}
+        let currentPhotoToAssign = null; // Photo en cours d'attribution
+
 
 
         // Éléments DOM
@@ -3498,6 +3542,152 @@
             }, 300);
         }
 
+        /**
+         * Charge toutes les photos de tous les voyages (mode bibliothèque)
+         */
+        async function loadLibraryPhotos() {
+            const gridContainer = document.getElementById('general-photos-grid');
+            const noPhotosMessage = document.getElementById('no-general-photos');
+            
+            gridContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">Chargement de toute votre bibliothèque...</p>';
+            
+            try {
+                // Charge TOUTES les photos POI de l'utilisateur
+                const mediaQuery = query(
+                    collection(db, `artifacts/${appId}/users/${userId}/media`),
+                    where('type', '==', 'general')
+                );
+                
+                const snapshot = await getDocs(mediaQuery);
+                
+                if (snapshot.empty) {
+                    gridContainer.innerHTML = '';
+                    noPhotosMessage.classList.remove('hidden');
+                    return;
+                }
+                
+                noPhotosMessage.classList.add('hidden');
+                gridContainer.innerHTML = '';
+                
+                const allPhotos = [];
+                snapshot.forEach(doc => {
+                    const photo = { id: doc.id, ...doc.data() };
+                    allPhotos.push(photo);
+                });
+                
+                // Trie par date
+                allPhotos.sort((a, b) => {
+                    const dateA = a.uploadedAt?.toMillis() || 0;
+                    const dateB = b.uploadedAt?.toMillis() || 0;
+                    return dateB - dateA;
+                });
+                
+                // Affiche les photos avec indicateur si déjà dans ce voyage
+                allPhotos.forEach(photo => {
+                    const isInCurrentTrip = photo.assignedTrips && photo.assignedTrips.includes(currentTripId);
+                    
+                    const photoCard = document.createElement('div');
+                    photoCard.className = `relative group bg-gray-100 rounded-lg overflow-hidden aspect-square ${isInCurrentTrip ? 'ring-4 ring-green-500' : 'cursor-pointer hover:ring-4 hover:ring-purple-400'}`;
+                    photoCard.innerHTML = `
+                        <img src="${photo.downloadURL}" 
+                             alt="${photo.fileName}" 
+                             class="w-full h-full object-cover">
+                        
+                        <!-- Indicateur si déjà dans le voyage -->
+                        ${isInCurrentTrip ? '<div class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold"><i class="fas fa-check mr-1"></i>Dans ce voyage</div>' : ''}
+                        
+                        <!-- Overlay avec tags -->
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
+                            <div class="flex flex-wrap gap-1">
+                                ${photo.tags.map(tag => `
+                                    <span class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                                        ${tag}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                        
+                        <!-- Bouton d'action -->
+                        ${!isInCurrentTrip ? `
+                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all flex items-center justify-center">
+                            <button class="assign-photo-btn opacity-0 group-hover:opacity-100 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium"
+                                    data-photo-id="${photo.id}"
+                                    title="Ajouter au voyage">
+                                <i class="fas fa-plus mr-2"></i>Ajouter
+                            </button>
+                        </div>
+                        ` : ''}
+                    `;
+                    
+                    gridContainer.appendChild(photoCard);
+                });
+                
+                // Ajoute les listeners sur les boutons d'assignation
+                document.querySelectorAll('.assign-photo-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const photoId = btn.dataset.photoId;
+                        const photo = allPhotos.find(p => p.id === photoId);
+                        if (photo) {
+                            openAssignPhotoModal(photo);
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                console.error("Erreur lors du chargement de la bibliothèque:", error);
+                gridContainer.innerHTML = '<p class="col-span-full text-center text-red-500">Erreur de chargement</p>';
+            }
+        }
+
+        /**
+         * Ouvre la modale d'attribution de photo
+         */
+        function openAssignPhotoModal(photo) {
+            currentPhotoToAssign = photo;
+            
+            document.getElementById('assign-trip-name').textContent = currentTripName;
+            document.getElementById('assign-photo-preview').src = photo.downloadURL;
+            document.getElementById('assign-photo-tags').textContent = photo.tags.join(', ');
+            
+            toggleModal(document.getElementById('assign-photo-modal'), true);
+        }
+
+        /**
+         * Assigne une photo au voyage actuel
+         */
+        async function assignPhotoToTrip() {
+            if (!currentPhotoToAssign || !currentTripId) return;
+            
+            try {
+                // Met à jour le document pour ajouter le voyage aux assignedTrips
+                const photoRef = doc(db, `artifacts/${appId}/users/${userId}/media/${currentPhotoToAssign.id}`);
+                const currentAssignedTrips = currentPhotoToAssign.assignedTrips || [];
+                
+                if (!currentAssignedTrips.includes(currentTripId)) {
+                    currentAssignedTrips.push(currentTripId);
+                    
+                    await setDoc(photoRef, {
+                        assignedTrips: currentAssignedTrips
+                    }, { merge: true });
+                    
+                    showToast("Photo ajoutée au voyage !", "success");
+                    
+                    // Ferme la modale
+                    toggleModal(document.getElementById('assign-photo-modal'), false);
+                    
+                    // Recharge la bibliothèque pour mettre à jour les indicateurs
+                    loadLibraryPhotos();
+                    
+                    currentPhotoToAssign = null;
+                }
+            } catch (error) {
+                console.error("Erreur lors de l'assignation:", error);
+                showToast("Erreur lors de l'ajout de la photo.", "error");
+            }
+        }
+
+
         // ============================================
         // LISTENERS POUR LE SYSTÈME DE MÉDIAS
         // ============================================
@@ -3574,6 +3764,25 @@
                 }
             });
         });
+
+        // Bouton bibliothèque
+        document.getElementById('browse-library-btn').addEventListener('click', loadLibraryPhotos);
+        
+        // Modale d'attribution
+        document.getElementById('cancel-assign-btn').addEventListener('click', () => {
+            toggleModal(document.getElementById('assign-photo-modal'), false);
+            currentPhotoToAssign = null;
+        });
+        
+        document.getElementById('confirm-assign-btn').addEventListener('click', assignPhotoToTrip);
+        
+        document.getElementById('assign-photo-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('assign-photo-modal')) {
+                toggleModal(document.getElementById('assign-photo-modal'), false);
+                currentPhotoToAssign = null;
+            }
+        });
+
 
         // Démarrage de l'application
         startApp();
