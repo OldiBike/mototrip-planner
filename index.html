@@ -3179,7 +3179,74 @@
         async function openHotelLightbox(dayId) {
             try {
                 // Récupère les infos de l'étape
-                const dayDoc = await getDoc(doc(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days/${dayId}`));
+                const dayDoc = await getDoc(doc(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}
+
+        /**
+         * Ouvre la lightbox pour les photos d'un hôtel par son nom
+         */
+        async function openHotelLightboxByName(hotelName) {
+            try {
+                // Récupère toutes les photos de cet hôtel (collection globale)
+                const mediaQuery = query(
+                    collection(db, `artifacts/${appId}/users/${userId}/media`),
+                    where('type', '==', 'hotel'),
+                    where('hotelName', '==', hotelName)
+                );
+                
+                const snapshot = await getDocs(mediaQuery);
+                
+                if (snapshot.empty) {
+                    showToast("Aucune photo pour cet hôtel.", "error");
+                    return;
+                }
+                
+                currentLightboxPhotos = [];
+                snapshot.forEach(doc => {
+                    currentLightboxPhotos.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Trie par date
+                currentLightboxPhotos.sort((a, b) => {
+                    const dateA = a.uploadedAt?.toMillis() || 0;
+                    const dateB = b.uploadedAt?.toMillis() || 0;
+                    return dateA - dateB;
+                });
+                
+                currentLightboxIndex = 0;
+                
+                // Met à jour l'en-tête
+                document.getElementById('lightbox-hotel-name').textContent = hotelName;
+                
+                // Cherche l'étape dans le voyage actuel
+                const daysQuery = query(
+                    collection(db, `artifacts/${appId}/users/${userId}/trips/${currentTripId}/days`),
+                    where('hotelName', '==', hotelName)
+                );
+                const daysSnapshot = await getDocs(daysQuery);
+                
+                let dayInfo = '';
+                if (!daysSnapshot.empty) {
+                    const days = [];
+                    daysSnapshot.forEach(doc => {
+                        const day = doc.data();
+                        days.push(`${day.dayName}${day.city ? ' • ' + day.city : ''}`);
+                    });
+                    dayInfo = days.join(' | ');
+                }
+                
+                document.getElementById('lightbox-day-name').textContent = dayInfo;
+                
+                // Affiche la première photo
+                updateLightboxDisplay();
+                
+                // Ouvre la modale
+                toggleModal(document.getElementById('hotel-lightbox-modal'), true);
+                
+            } catch (error) {
+                console.error("Erreur lors de l'ouverture de la lightbox:", error);
+                showToast("Erreur lors du chargement des photos.", "error");
+            }
+        }/days/${dayId}`));
                 if (!dayDoc.exists()) {
                     showToast("Étape introuvable.", "error");
                     return;
