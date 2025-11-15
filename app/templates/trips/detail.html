@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trip.name }} - MotoTrip{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+{% if trip.photos and trip.photos|length > 0 %}
+<div id="tripCarousel" class="carousel slide" data-bs-ride="carousel">
+    <div class="carousel-inner">
+        {% for photo in trip.photos[:5] %}
+        <div class="carousel-item {% if loop.first %}active{% endif %}">
+            <img src="{{ photo }}" class="d-block w-100" alt="{{ trip.name }}" style="height: 500px; object-fit: cover;">
+        </div>
+        {% endfor %}
+    </div>
+    {% if trip.photos|length > 1 %}
+    <button class="carousel-control-prev" type="button" data-bs-target="#tripCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#tripCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+    </button>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="container py-5">
+    <div class="row">
+        <!-- Colonne principale : Informations du voyage -->
+        <div class="col-lg-8">
+            <h1 class="display-5 mb-3">{{ trip.name }}</h1>
+            
+            {% if trip.description %}
+            <div class="mb-4">
+                <h4>À propos de ce voyage</h4>
+                <p class="lead">{{ trip.description }}</p>
+            </div>
+            {% endif %}
+            
+            {% if trip.highlights %}
+            <div class="mb-4">
+                <h4>Points forts</h4>
+                <div class="row">
+                    {% for highlight in trip.highlights %}
+                    <div class="col-md-6 mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>{{ highlight }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Note:</strong> L'itinéraire détaillé, les noms des hôtels et les fichiers GPX seront accessibles après votre réservation.
+            </div>
+        </div>
+        
+        <!-- Colonne latérale : Formulaire de réservation -->
+        <div class="col-lg-4">
+            <div class="card shadow-lg sticky-top" style="top: 20px;">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        {% if trip.pricePerPerson %}
+                        <h2 class="text-primary mb-0">{{ trip.pricePerPerson }}€</h2>
+                        <small class="text-muted">par personne</small>
+                        {% endif %}
+                        {% if trip.duration %}
+                        <p class="text-muted mt-2"><i class="bi bi-calendar"></i> {{ trip.duration }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" action="{{ url_for('trips.book_trip', slug=trip.slug) }}" id="bookingForm" 
+                          data-price="{{ trip.get('pricePerPerson', 0) }}" 
+                          data-deposit="{{ trip.get('depositPercentage', 30) }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Votre email *</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="nb_participants" class="form-label">Nombre de participants *</label>
+                            <select class="form-select" id="nb_participants" name="nb_participants" required>
+                                {% for i in range(1, 21) %}
+                                <option value="{{ i }}">{{ i }} personne{{ 's' if i > 1 else '' }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="start_date" class="form-label">Date de début *</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required min="{{ today }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="end_date" class="form-label">Date de fin *</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required min="{{ today }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between text-muted small">
+                                <span>Prix total:</span>
+                                <span id="total_amount">{{ trip.pricePerPerson }}€</span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold">
+                                <span>Acompte ({{ trip.depositPercentage or 30 }}%):</span>
+                                <span id="deposit_amount">{{ (trip.pricePerPerson * (trip.depositPercentage or 30) / 100)|round(2) }}€</span>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            Réserver maintenant
+                        </button>
+                        
+                        <p class="text-center text-muted small mt-3 mb-0">
+                            Paiement sécurisé via Stripe
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bookingForm = document.getElementById('bookingForm');
+    const nbParticipantsSelect = document.getElementById('nb_participants');
+    const pricePerPerson = parseFloat(bookingForm.dataset.price) || 0;
+    const depositPercentage = parseFloat(bookingForm.dataset.deposit) || 30;
+    
+    function updatePrices() {
+        const nbParticipants = parseInt(nbParticipantsSelect.value);
+        const totalAmount = pricePerPerson * nbParticipants;
+        const depositAmount = (totalAmount * depositPercentage / 100).toFixed(2);
+        
+        document.getElementById('total_amount').textContent = totalAmount + '€';
+        document.getElementById('deposit_amount').textContent = depositAmount + '€';
+    }
+    
+    nbParticipantsSelect.addEventListener('change', updatePrices);
+    
+    // Set min date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('start_date').setAttribute('min', today);
+    document.getElementById('end_date').setAttribute('min', today);
+    
+    // Update end date min when start date changes
+    document.getElementById('start_date').addEventListener('change', function() {
+        document.getElementById('end_date').setAttribute('min', this.value);
+    });
+});
+</script>
+{% endblock %}

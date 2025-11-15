@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{% block page_title %}Voyage Moto Personnalisé - OldiBike{% endblock %}{% endblock %}
+
+{% block extra_styles %}
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-shadow {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .map-container {
+            height: 500px;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 768px) {
+            .map-container {
+                height: 350px;
+            }
+        }
+        
+        .day-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .day-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stripe-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .stripe-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .oldibike-logo {
+            max-width: 150px;
+            height: auto;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+        }
+        
+        .price-badge {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .info-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+            <!-- Logo OldiBike -->
+            <a href="https://oldibike.be" class="flex items-center">
+                <img src="https://oldibike.be/wp-content/uploads/2023/01/logo-oldibike.png" 
+                     alt="OldiBike" 
+                     class="oldibike-logo">
+            </a>
+            
+            <!-- Navigation -->
+            <nav class="flex items-center space-x-6">
+                <a href="https://oldibike.be" class="text-gray-700 hover:text-purple-600 transition">
+                    <i class="fas fa-home mr-2"></i>Accueil
+                </a>
+                <a href="https://oldibike.be/voyages" class="text-gray-700 hover:text-purple-600 transition">
+                    <i class="fas fa-motorcycle mr-2"></i>Nos Voyages
+                </a>
+                <a href="https://oldibike.be/contact" class="text-gray-700 hover:text-purple-600 transition">
+                    <i class="fas fa-envelope mr-2"></i>Contact
+                </a>
+            </nav>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main>
+        {% block page_content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white mt-16">
+        <div class="container mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- About -->
+                <div>
+                    <h3 class="text-xl font-bold mb-4">OldiBike</h3>
+                    <p class="text-gray-400">
+                        Voyages moto sur mesure pour passionnés. 
+                        Explorez le monde à deux roues avec des itinéraires uniques.
+                    </p>
+                </div>
+                
+                <!-- Contact -->
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Contact</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><i class="fas fa-envelope mr-2"></i> contact@oldibike.be</li>
+                        <li><i class="fas fa-phone mr-2"></i> +32 XXX XX XX XX</li>
+                        <li><i class="fas fa-map-marker-alt mr-2"></i> Belgique</li>
+                    </ul>
+                </div>
+                
+                <!-- Social -->
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Suivez-nous</h3>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white transition">
+                            <i class="fab fa-facebook fa-2x"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition">
+                            <i class="fab fa-instagram fa-2x"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition">
+                            <i class="fab fa-youtube fa-2x"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 mt-8 pt-6 text-center text-gray-400">
+                <p>&copy; 2025 OldiBike. Tous droits réservés.</p>
+            </div>
+        </div>
+    </footer>
+{% endblock %}

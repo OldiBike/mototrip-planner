@@ -1,0 +1,114 @@
+{% extends "client/base.html" %}
+
+{% block title %}Réservation Confirmée - OldiBike{% endblock %}
+
+{% block content %}
+
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 py-12 px-4">
+    <div class="max-w-2xl w-full">
+        <!-- Success Card -->
+        <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12 text-center">
+            <!-- Success Icon -->
+            <div class="mb-6">
+                <div class="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full">
+                    <i class="fas fa-check-circle text-green-500 text-6xl"></i>
+                </div>
+            </div>
+            
+            <!-- Title -->
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                Paiement Confirmé !
+            </h1>
+            
+            <p class="text-xl text-gray-600 mb-8">
+                Merci pour votre réservation
+            </p>
+            
+            <!-- Trip Details -->
+            <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                    <i class="fas fa-motorcycle mr-2 text-purple-600"></i>
+                    {{ trip.title }}
+                </h2>
+                
+                <div class="space-y-3 text-gray-700">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Email:</span>
+                        <span>{{ session.customer_email }}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Montant payé:</span>
+                        <span class="text-2xl font-bold text-green-600">
+                            {{ "%.2f"|format(session.amount_total) }}€
+                        </span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Nombre de personnes:</span>
+                        <span>{{ session.metadata.quantity }} {% if session.metadata.quantity|int > 1 %}personnes{% else %}personne{% endif %}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Statut:</span>
+                        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                            Payé
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Next Steps -->
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-6 mb-8 text-left">
+                <h3 class="font-bold text-blue-900 mb-3 flex items-center">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Prochaines étapes
+                </h3>
+                <ul class="space-y-2 text-blue-800">
+                    <li class="flex items-start">
+                        <i class="fas fa-check mr-2 mt-1"></i>
+                        <span>Vous recevrez un email de confirmation à <strong>{{ session.customer_email }}</strong></span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check mr-2 mt-1"></i>
+                        <span>Notre équipe vous contactera sous 24-48h pour finaliser les détails</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check mr-2 mt-1"></i>
+                        <span>Vous recevrez votre roadbook GPS personnalisé avant le départ</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://oldibike.be" 
+                   class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <i class="fas fa-home mr-2"></i>Retour à l'accueil
+                </a>
+                
+                <a href="https://oldibike.be/contact" 
+                   class="inline-block bg-gray-200 hover:bg-gray-300 text-gray-800 px-8 py-3 rounded-lg font-semibold transition">
+                    <i class="fas fa-envelope mr-2"></i>Nous contacter
+                </a>
+            </div>
+            
+            <!-- Reference -->
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <p class="text-sm text-gray-500">
+                    Référence de transaction: <span class="font-mono">{{ session.id }}</span>
+                </p>
+            </div>
+        </div>
+        
+        <!-- Additional Info -->
+        <div class="mt-6 text-center text-gray-600">
+            <p class="text-sm">
+                <i class="fas fa-shield-alt mr-1"></i>
+                Vos informations sont sécurisées et ne seront pas partagées
+            </p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

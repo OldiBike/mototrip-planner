@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche d'hôtels - MotoTrip Planner{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-3">
+                <i class="fas fa-hotel"></i> Recherche d'hôtels moto-friendly
+            </h1>
+            <p class="text-muted">
+                Recherchez des hôtels adaptés aux motards avec parking sécurisé, petit-déjeuner et note ≥ 8.0
+            </p>
+        </div>
+    </div>
+
+    <!-- Formulaire de recherche -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-search"></i> Critères de recherche</h5>
+                </div>
+                <div class="card-body">
+                    <form id="hotelSearchForm">
+                        <div class="row">
+                            <!-- Ville/Région -->
+                            <div class="col-md-6 mb-3">
+                                <label for="cityRegion" class="form-label">
+                                    <i class="fas fa-map-marker-alt"></i> Ville de destination
+                                </label>
+                                <div style="position: relative;">
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="cityRegion" 
+                                           name="city_or_region"
+                                           placeholder="Ex: Gap, Annecy, Lyon..."
+                                           autocomplete="off"
+                                           required>
+                                </div>
+                                <small class="form-text text-success">
+                                    ✨ Tapez le nom d'une ville et sélectionnez dans la liste
+                                </small>
+                            </div>
+
+                            <!-- Nombre de chambres -->
+                            <div class="col-md-6 mb-3">
+                                <label for="numRooms" class="form-label">
+                                    <i class="fas fa-bed"></i> Configuration
+                                </label>
+                                <select class="form-select" id="numRooms">
+                                    <option value="1">1 chambre double (2 adultes)</option>
+                                    <option value="2" selected>2 chambres doubles (4 adultes)</option>
+                                    <option value="3">3 chambres doubles (6 adultes)</option>
+                                    <option value="4">4 chambres doubles (8 adultes)</option>
+                                </select>
+                            </div>
+
+                            <!-- Check-in -->
+                            <div class="col-md-6 mb-3">
+                                <label for="checkin" class="form-label">
+                                    <i class="fas fa-calendar-check"></i> Check-in
+                                </label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="checkin" 
+                                       name="checkin"
+                                       required>
+                            </div>
+
+                            <!-- Check-out -->
+                            <div class="col-md-6 mb-3">
+                                <label for="checkout" class="form-label">
+                                    <i class="fas fa-calendar-times"></i> Check-out
+                                </label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="checkout" 
+                                       name="checkout"
+                                       required>
+                            </div>
+                        </div>
+
+                        <!-- Critères moto (affichage informatif) -->
+                        <div class="alert alert-info mb-3">
+                            <h6 class="alert-heading">
+                                <i class="fas fa-motorcycle"></i> Critères moto appliqués automatiquement :
+                            </h6>
+                            <ul class="mb-0">
+                                <li>✅ Parking sécurisé (privé de préférence)</li>
+                                <li>✅ Petit-déjeuner inclus</li>
+                                <li>✅ Note minimum : 8.0/10</li>
+                            </ul>
+                        </div>
+
+                        <!-- Bouton de recherche -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="searchBtn">
+                                <i class="fas fa-search"></i> Rechercher des hôtels
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone de chargement -->
+    <div id="loadingSection" class="row mb-4" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <strong>Recherche en cours...</strong> Nous analysons les hôtels disponibles.
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques de résultats -->
+    <div id="statsSection" class="row mb-3" style="display: none;">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h4 class="text-primary mb-0" id="statFound">0</h4>
+                            <small class="text-muted">Hôtels trouvés</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-success mb-0" id="statFiltered">0</h4>
+                            <small class="text-muted">Correspondent aux critères</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-warning mb-0" id="statRejectedRating">0</h4>
+                            <small class="text-muted">Note insuffisante</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-info mb-0" id="statRejectedParking">0</h4>
+                            <small class="text-muted">Parking non vérifié</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone d'erreur -->
+    <div id="errorSection" class="row mb-4" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Erreur</h5>
+                <p id="errorMessage"></p>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Résultats de recherche -->
+    <div id="resultsSection" class="row" style="display: none;">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-list"></i> Hôtels disponibles 
+                <span class="badge bg-primary" id="resultCount">0</span>
+            </h4>
+            <div id="hotelsList" class="row g-3">
+                <!-- Les cartes d'hôtels seront insérées ici par JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Message si aucun résultat -->
+    <div id="noResultsSection" class="row" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-warning text-center">
+                <h5><i class="fas fa-exclamation-circle"></i> Aucun hôtel trouvé</h5>
+                <p class="mb-0">
+                    Essayez de modifier vos critères de recherche ou choisissez une autre destination.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modale de détails d'hôtel -->
+<div class="modal fade" id="hotelDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hotelModalTitle">Détails de l'hôtel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="hotelModalBody">
+                <!-- Contenu chargé dynamiquement -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Fermer
+                </button>
+                <button type="button" class="btn btn-primary" id="addToTripBtn">
+                    <i class="fas fa-plus"></i> Ajouter au voyage
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script dédié à la recherche d'hôtels -->
+<script src="{{ url_for('static', filename='js/hotel_search.js') }}"></script>
+{% endblock %}

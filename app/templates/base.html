@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MotoTrip Planner{% endblock %}</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <script>
+        // Configuration et initialisation Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA6h4eD-H9p1iFK8tf-2QFS-PzVcjGmGOo",
+            authDomain: "mototrip-63c76.firebaseapp.com",
+            projectId: "mototrip-63c76",
+            storageBucket: "mototrip-63c76.firebasestorage.app",
+            messagingSenderId: "1080042188681",
+            appId: "1:1080042188681:web:335bc72f4ae5b3a9f7fb58"
+        };
+        
+        // Initialiser Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
+        console.log('✅ Firebase initialisé avec succès');
+    </script>
+    
+    {% block extra_head_scripts %}{% endblock %}
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* Style pour les modales */
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-content {
+            transition: transform 0.25s ease;
+        }
+        
+        /* Style pour les éléments désactivés */
+        :disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body class="text-gray-800">
+    
+    {% block content %}{% endblock %}
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-10 right-10 bg-green-500 text-white px-6 py-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-0 hidden z-50">
+        <span id="toast-message"></span>
+    </div>
+    
+    <!-- Scripts globaux -->
+    <script>
+        /**
+         * Affiche une notification toast
+         */
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            
+            toastMessage.textContent = message;
+            toast.classList.remove('bg-green-500', 'bg-red-500', 'bg-blue-500', 'hidden', 'opacity-0');
+            
+            if (type === 'success') {
+                toast.classList.add('bg-green-500');
+            } else if (type === 'error') {
+                toast.classList.add('bg-red-500');
+            } else {
+                toast.classList.add('bg-blue-500');
+            }
+            
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+        
+        /**
+         * Bascule la visibilité d'une modale
+         */
+        function toggleModal(modalEl, show) {
+            const content = modalEl.querySelector('.modal-content');
+            if (show) {
+                modalEl.classList.remove('hidden');
+                setTimeout(() => {
+                    modalEl.classList.remove('opacity-0');
+                    if(content) content.classList.remove('scale-95');
+                }, 10);
+            } else {
+                modalEl.classList.add('opacity-0');
+                if(content) content.classList.add('scale-95');
+                setTimeout(() => {
+                    modalEl.classList.add('hidden');
+                }, 250);
+            }
+        }
+        
+        /**
+         * Affiche un loader
+         */
+        function showLoader(containerId) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = '<div class="flex justify-center items-center py-8"><div class="spinner"></div></div>';
+            }
+        }
+        
+        /**
+         * Fait une requête AJAX
+         */
+        async function fetchAPI(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erreur serveur');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('Erreur API:', error);
+                throw error;
+            }
+        }
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

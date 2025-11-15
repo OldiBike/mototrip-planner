@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Mon profil - MotoTrip{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">👤 Mon profil</h4>
+                </div>
+                <div class="card-body p-4">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">Prénom *</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{{ current_user.first_name }}" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Nom *</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{{ current_user.last_name }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ current_user.email }}" readonly>
+                            <div class="form-text">L'email ne peut pas être modifié</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="phone" class="form-label">Téléphone</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ current_user.phone }}" placeholder="+32 123 45 67 89">
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+                            <a href="{{ url_for('bookings.my_bookings') }}" class="btn btn-outline-secondary">Annuler</a>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informations du compte</h6>
+                            <p class="mb-1"><small><strong>Rôle:</strong> {{ 'Administrateur' if current_user.role == 'admin' else 'Client' }}</small></p>
+                            <p class="mb-1"><small><strong>Compte créé:</strong> {{ current_user.created_at[:10] if current_user.created_at else 'N/A' }}</small></p>
+                            <p class="mb-1"><small><strong>Statut:</strong> 
+                                <span class="badge bg-{{ 'success' if current_user.is_active else 'secondary' }}">
+                                    {{ 'Actif' if current_user.is_active else 'Inactif' }}
+                                </span>
+                            </small></p>
+                        </div>
+                        
+                        <div class="col-md-6 text-end">
+                            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-box-arrow-right"></i> Se déconnecter
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="{{ url_for('bookings.my_bookings') }}" class="btn btn-link">
+                    ← Retour à mes réservations
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

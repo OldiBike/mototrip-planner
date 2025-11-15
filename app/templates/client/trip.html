@@ -1,0 +1,431 @@
+{% extends "client/base.html" %}
+
+{% block page_title %}{{ trip.title }} - OldiBike{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .timeline-item::before {
+        content: counter(day);
+        counter-increment: day;
+        position: absolute;
+        left: -40px;
+        top: 20px;
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .timeline {
+        counter-reset: day;
+    }
+</style>
+{% endblock %}
+
+{% block page_content %}
+
+<!-- Hero Section -->
+<section class="hero-section text-white py-20">
+    <div class="container mx-auto px-4">
+        <div class="max-w-4xl mx-auto text-center">
+            <h1 class="text-5xl font-bold mb-6">
+                <i class="fas fa-motorcycle mr-4"></i>{{ trip.title }}
+            </h1>
+            <p class="text-xl mb-8 leading-relaxed">
+                {{ trip.description }}
+            </p>
+            
+            <!-- Price Badge -->
+            <div class="inline-block">
+                <div class="price-badge text-white px-8 py-4 rounded-full text-2xl font-bold shadow-lg">
+                    <i class="fas fa-euro-sign mr-2"></i>{{ "%.2f"|format(trip.pricePerPerson) }} / personne
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Trip Info Cards -->
+<section class="container mx-auto px-4 -mt-10 mb-12">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Duration -->
+        <div class="bg-white rounded-xl p-6 card-shadow text-center">
+            <div class="info-icon mx-auto mb-4">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-2">Durée</h3>
+            <p class="text-gray-600">{{ trip.days|length }} jours</p>
+        </div>
+        
+        <!-- Distance -->
+        <div class="bg-white rounded-xl p-6 card-shadow text-center">
+            <div class="info-icon mx-auto mb-4">
+                <i class="fas fa-route"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-2">Distance</h3>
+            <p class="text-gray-600">{{ total_distance }} km</p>
+        </div>
+        
+        <!-- Hébergements -->
+        <div class="bg-white rounded-xl p-6 card-shadow text-center">
+            <div class="info-icon mx-auto mb-4">
+                <i class="fas fa-hotel"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-2">Hébergements</h3>
+            <p class="text-gray-600">{{ trip.days|length - 1 }} nuits</p>
+        </div>
+        
+        <!-- Difficulté -->
+        <div class="bg-white rounded-xl p-6 card-shadow text-center">
+            <div class="info-icon mx-auto mb-4">
+                <i class="fas fa-star"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-2">Niveau</h3>
+            <p class="text-gray-600">Tout niveau</p>
+        </div>
+    </div>
+</section>
+
+<!-- Map Section -->
+<section class="container mx-auto px-4 mb-12">
+    <div class="bg-white rounded-xl p-6 card-shadow">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6">
+            <i class="fas fa-map-marked-alt mr-3 text-purple-600"></i>Itinéraire
+        </h2>
+        <div id="map" class="map-container"></div>
+    </div>
+</section>
+
+<!-- Itinerary Section -->
+<section class="container mx-auto px-4 mb-12">
+    <div class="bg-white rounded-xl p-6 card-shadow">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            <i class="fas fa-list-ol mr-3 text-purple-600"></i>Programme détaillé
+        </h2>
+        
+        <div class="timeline relative pl-12">
+            {% for day in trip.days %}
+            <div class="timeline-item relative mb-8 day-card bg-gray-50 p-6 rounded-xl">
+                <div class="flex flex-col md:flex-row md:items-start gap-6">
+                    <!-- Day Info -->
+                    <div class="flex-1">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-3">
+                            Jour {{ loop.index }} : {{ day.city }}
+                        </h3>
+                        
+                        <!-- Location -->
+                        <div class="flex items-center text-gray-600 mb-3">
+                            <i class="fas fa-map-marker-alt mr-3 text-purple-600"></i>
+                            <span>{{ day.location }}</span>
+                        </div>
+                        
+                        <!-- Distance -->
+                        {% if day.distance %}
+                        <div class="flex items-center text-gray-600 mb-3">
+                            <i class="fas fa-route mr-3 text-purple-600"></i>
+                            <span>{{ day.distance }} km</span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Hotel -->
+                        {% if day.hotelName %}
+                        <div class="flex items-start text-gray-600 mb-3">
+                            <i class="fas fa-hotel mr-3 text-purple-600 mt-1"></i>
+                            <div>
+                                <div class="font-semibold">{{ day.hotelName }}</div>
+                                {% if day.hotelAddress %}
+                                <div class="text-sm">{{ day.hotelAddress }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Description -->
+                        {% if day.description %}
+                        <div class="mt-4 text-gray-700 leading-relaxed">
+                            {{ day.description }}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Activities -->
+                        {% if day.activities %}
+                        <div class="mt-4">
+                            <h4 class="font-semibold text-gray-800 mb-2">
+                                <i class="fas fa-hiking mr-2"></i>Activités
+                            </h4>
+                            <ul class="list-disc list-inside text-gray-600 space-y-1">
+                                {% for activity in day.activities %}
+                                <li>{{ activity }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Day Image (if available) -->
+                    {% if day.imageUrl %}
+                    <div class="md:w-1/3">
+                        <img src="{{ day.imageUrl }}" 
+                             alt="{{ day.city }}" 
+                             class="w-full h-48 object-cover rounded-lg shadow-md">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- What's Included Section -->
+<section class="container mx-auto px-4 mb-12">
+    <div class="bg-white rounded-xl p-6 card-shadow">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            <i class="fas fa-check-circle mr-3 text-purple-600"></i>Ce qui est inclus
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-start">
+                <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-1">Hébergements</h4>
+                    <p class="text-gray-600">{{ trip.days|length - 1 }} nuits en hôtels sélectionnés</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-1">Itinéraire détaillé</h4>
+                    <p class="text-gray-600">Roadbook GPS et carte interactive</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-1">Support 24/7</h4>
+                    <p class="text-gray-600">Assistance pendant tout le voyage</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-1">Suggestions de visites</h4>
+                    <p class="text-gray-600">Points d'intérêt et activités recommandées</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Booking Section -->
+<section class="container mx-auto px-4 mb-12">
+    <div class="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-8 card-shadow text-white text-center">
+        <h2 class="text-3xl font-bold mb-4">Prêt pour l'aventure ?</h2>
+        <p class="text-xl mb-6">Réservez dès maintenant votre voyage personnalisé</p>
+        
+        <div class="flex flex-col md:flex-row items-center justify-center gap-6">
+            <!-- Price Display -->
+            <div class="text-center">
+                <div class="text-5xl font-bold mb-2">
+                    {{ "%.2f"|format(trip.pricePerPerson) }}€
+                </div>
+                <div class="text-lg opacity-90">par personne</div>
+            </div>
+            
+            <!-- Stripe Button -->
+            <button id="checkout-button" 
+                    class="stripe-button text-white px-12 py-4 rounded-full text-xl font-bold shadow-xl">
+                <i class="fas fa-credit-card mr-3"></i>Réserver maintenant
+            </button>
+        </div>
+        
+        <p class="text-sm mt-6 opacity-75">
+            <i class="fas fa-lock mr-2"></i>Paiement sécurisé via Stripe
+        </p>
+    </div>
+</section>
+
+<!-- Contact Section -->
+<section class="container mx-auto px-4 mb-12">
+    <div class="bg-white rounded-xl p-6 card-shadow text-center">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Des questions ?</h2>
+        <p class="text-gray-600 mb-6">Notre équipe est là pour vous aider</p>
+        <a href="https://oldibike.be/contact" 
+           class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg transition">
+            <i class="fas fa-envelope mr-2"></i>Nous contacter
+        </a>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Trip data from backend
+    const tripData = JSON.parse('{{ trip_json|tojson|safe }}');
+    
+    let map;
+    let directionsService;
+    let directionsRenderer;
+    
+    // Initialize Google Maps
+    function initMap() {
+        // Create map centered on first location
+        const firstDay = tripData.days[0];
+        const centerLat = firstDay.latitude || 50.8503; // Brussels default
+        const centerLng = firstDay.longitude || 4.3517;
+        
+        map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 6,
+            center: { lat: centerLat, lng: centerLng },
+            styles: [
+                {
+                    featureType: "poi",
+                    elementType: "labels",
+                    stylers: [{ visibility: "off" }]
+                }
+            ]
+        });
+        
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({
+            map: map,
+            suppressMarkers: false,
+            polylineOptions: {
+                strokeColor: '#667eea',
+                strokeWeight: 4
+            }
+        });
+        
+        // If we have multiple days with coordinates, show route
+        const validDays = tripData.days.filter(day => day.latitude && day.longitude);
+        
+        if (validDays.length > 1) {
+            showRoute(validDays);
+        } else if (validDays.length === 1) {
+            // Just show a single marker
+            new google.maps.Marker({
+                position: { lat: validDays[0].latitude, lng: validDays[0].longitude },
+                map: map,
+                title: validDays[0].city,
+                label: '1'
+            });
+        }
+    }
+    
+    // Show route on map
+    function showRoute(days) {
+        const waypoints = days.slice(1, -1).map(day => ({
+            location: new google.maps.LatLng(day.latitude, day.longitude),
+            stopover: true
+        }));
+        
+        const request = {
+            origin: new google.maps.LatLng(days[0].latitude, days[0].longitude),
+            destination: new google.maps.LatLng(days[days.length - 1].latitude, days[days.length - 1].longitude),
+            waypoints: waypoints,
+            travelMode: 'DRIVING'
+        };
+        
+        directionsService.route(request, (result, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(result);
+                
+                // Add custom markers with day numbers
+                days.forEach((day, index) => {
+                    new google.maps.Marker({
+                        position: { lat: day.latitude, lng: day.longitude },
+                        map: map,
+                        label: {
+                            text: String(index + 1),
+                            color: 'white',
+                            fontWeight: 'bold'
+                        },
+                        title: day.city,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 20,
+                            fillColor: '#667eea',
+                            fillOpacity: 1,
+                            strokeColor: 'white',
+                            strokeWeight: 3
+                        }
+                    });
+                });
+            } else {
+                console.error('Directions request failed:', status);
+                // Fallback: show individual markers
+                days.forEach((day, index) => {
+                    new google.maps.Marker({
+                        position: { lat: day.latitude, lng: day.longitude },
+                        map: map,
+                        label: String(index + 1),
+                        title: day.city
+                    });
+                });
+            }
+        });
+    }
+    
+    // Stripe Checkout
+    document.getElementById('checkout-button').addEventListener('click', async function() {
+        const button = this;
+        const originalText = button.innerHTML;
+        
+        // Désactive le bouton pendant le traitement
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Redirection...';
+        
+        try {
+            // Crée la session de paiement
+            const response = await fetch(`/voyageperso/{{ trip.slug }}/checkout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    quantity: 1,  // Par défaut 1 personne, peut être modifié plus tard
+                    email: null   // Stripe demandera l'email
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.checkout_url) {
+                // Redirige vers Stripe Checkout
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error(data.error || 'Erreur lors de la création de la session');
+            }
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('Une erreur est survenue. Veuillez réessayer ou nous contacter.');
+            
+            // Réactive le bouton
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    });
+    
+    // Smooth scroll for internal links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+</script>
+{% endblock %}

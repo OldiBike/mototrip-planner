@@ -1,0 +1,235 @@
+/**
+ * customers.js
+ * Gestion de la liste des clients
+ */
+
+// État de l'application
+let customers = [];
+let currentCustomer = null;
+let customerToDelete = null;
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', () => {
+    loadCustomers();
+    setupEventListeners();
+});
+
+/**
+ * Configuration des event listeners
+ */
+function setupEventListeners() {
+    // Bouton nouveau client
+    document.getElementById('add-customer-btn').addEventListener('click', () => {
+        openCustomerModal();
+    });
+    
+    // Formulaire client
+    document.getElementById('customer-form').addEventListener('submit', handleCustomerSubmit);
+    
+    // Boutons modal
+    document.getElementById('cancel-customer-btn').addEventListener('click', () => {
+        toggleModal(document.getElementById('customer-modal'), false);
+    });
+    
+    // Modale de suppression
+    document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+        toggleModal(document.getElementById('delete-confirm-modal'), false);
+    });
+    
+    document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
+}
+
+/**
+ * Charge tous les clients
+ */
+async function loadCustomers() {
+    try {
+        const response = await fetchAPI('/admin/api/customers');
+        customers = response.customers || [];
+        renderCustomers();
+    } catch (error) {
+        console.error('Erreur chargement clients:', error);
+        showToast('Erreur lors du chargement des clients', 'error');
+        document.getElementById('loading-customers').classList.add('hidden');
+        document.getElementById('customers-table-container').classList.remove('hidden');
+    }
+}
+
+/**
+ * Affiche la liste des clients
+ */
+function renderCustomers() {
+    const loading = document.getElementById('loading-customers');
+    const container = document.getElementById('customers-table-container');
+    const tbody = document.getElementById('customers-list');
+    const noCustomersMsg = document.getElementById('no-customers-message');
+    
+    loading.classList.add('hidden');
+    container.classList.remove('hidden');
+    
+    if (customers.length === 0) {
+        tbody.innerHTML = '';
+        noCustomersMsg.classList.remove('hidden');
+        return;
+    }
+    
+    noCustomersMsg.classList.add('hidden');
+    
+    tbody.innerHTML = customers.map(customer => `
+        <tr class="border-b border-gray-200 hover:bg-gray-50">
+            <td class="px-4 py-3">
+                <a href="/admin/customers/${customer.id}" class="text-blue-600 hover:text-blue-800 font-medium">
+                    ${escapeHtml(customer.name)}
+                </a>
+            </td>
+            <td class="px-4 py-3">${escapeHtml(customer.email)}</td>
+            <td class="px-4 py-3">${escapeHtml(customer.phone)}</td>
+            <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${customer.tripCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                    ${customer.tripCount} voyage${customer.tripCount > 1 ? 's' : ''}
+                </span>
+            </td>
+            <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                    <a href="/admin/customers/${customer.id}" class="text-blue-600 hover:text-blue-800 px-2 py-1" title="Voir détails">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    <button class="edit-customer-btn text-green-600 hover:text-green-800 px-2 py-1" data-customer-id="${customer.id}" title="Éditer">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="delete-customer-btn text-red-600 hover:text-red-800 px-2 py-1" data-customer-id="${customer.id}" title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Attache les event listeners
+    document.querySelectorAll('.edit-customer-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const customerId = e.currentTarget.dataset.customerId;
+            const customer = customers.find(c => c.id === customerId);
+            if (customer) openCustomerModal(customer);
+        });
+    });
+    
+    document.querySelectorAll('.delete-customer-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const customerId = e.currentTarget.dataset.customerId;
+            const customer = customers.find(c => c.id === customerId);
+            if (customer) openDeleteModal(customer);
+        });
+    });
+}
+
+/**
+ * Ouvre la modale de création/édition
+ */
+function openCustomerModal(customer = null) {
+    currentCustomer = customer;
+    const modal = document.getElementById('customer-modal');
+    const form = document.getElementById('customer-form');
+    const title = document.getElementById('modal-title');
+    
+    // Reset le formulaire
+    form.reset();
+    
+    if (customer) {
+        // Mode édition
+        title.textContent = 'Modifier le client';
+        document.getElementById('customer-id').value = customer.id;
+        document.getElementById('customer-name').value = customer.name;
+        document.getElementById('customer-email').value = customer.email;
+        document.getElementById('customer-phone').value = customer.phone;
+        document.getElementById('customer-address').value = customer.address || '';
+    } else {
+        // Mode création
+        title.textContent = 'Nouveau Client';
+        document.getElementById('customer-id').value = '';
+    }
+    
+    toggleModal(modal, true);
+}
+
+/**
+ * Gère la soumission du formulaire
+ */
+async function handleCustomerSubmit(e) {
+    e.preventDefault();
+    
+    const customerId = document.getElementById('customer-id').value;
+    const customerData = {
+        name: document.getElementById('customer-name').value.trim(),
+        email: document.getElementById('customer-email').value.trim(),
+        phone: document.getElementById('customer-phone').value.trim(),
+        address: document.getElementById('customer-address').value.trim()
+    };
+    
+    try {
+        if (customerId) {
+            // Mise à jour
+            await fetchAPI(`/admin/api/customers/${customerId}`, {
+                method: 'PUT',
+                body: JSON.stringify(customerData)
+            });
+            showToast('Client modifié avec succès', 'success');
+        } else {
+            // Création
+            await fetchAPI('/admin/api/customers', {
+                method: 'POST',
+                body: JSON.stringify(customerData)
+            });
+            showToast('Client créé avec succès', 'success');
+        }
+        
+        toggleModal(document.getElementById('customer-modal'), false);
+        loadCustomers();
+    } catch (error) {
+        console.error('Erreur sauvegarde client:', error);
+        showToast(error.message || 'Erreur lors de la sauvegarde', 'error');
+    }
+}
+
+/**
+ * Ouvre la modale de confirmation de suppression
+ */
+function openDeleteModal(customer) {
+    customerToDelete = customer;
+    const modal = document.getElementById('delete-confirm-modal');
+    const message = document.getElementById('delete-confirm-message');
+    
+    message.textContent = `Voulez-vous vraiment supprimer le client "${customer.name}" ? Tous ses voyages assignés et vouchers seront également supprimés.`;
+    
+    toggleModal(modal, true);
+}
+
+/**
+ * Confirme et exécute la suppression
+ */
+async function confirmDelete() {
+    if (!customerToDelete) return;
+    
+    try {
+        await fetchAPI(`/admin/api/customers/${customerToDelete.id}`, {
+            method: 'DELETE'
+        });
+        
+        showToast('Client supprimé avec succès', 'success');
+        toggleModal(document.getElementById('delete-confirm-modal'), false);
+        customerToDelete = null;
+        loadCustomers();
+    } catch (error) {
+        console.error('Erreur suppression client:', error);
+        showToast(error.message || 'Erreur lors de la suppression', 'error');
+    }
+}
+
+/**
+ * Échappe le HTML pour éviter les injections XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

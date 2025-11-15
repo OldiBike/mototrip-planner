@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Évaluer les hôtels - {{ trip.name if trip else 'Voyage' }} - MotoTrip{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('bookings.my_bookings') }}">Mes réservations</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('bookings.booking_detail', booking_id=booking.booking_id) }}">{{ trip.name if trip else 'Voyage' }}</a></li>
+                    <li class="breadcrumb-item active">Évaluer les hôtels</li>
+                </ol>
+            </nav>
+            <h1 class="display-6"><i class="bi bi-star"></i> Évaluez votre expérience</h1>
+            <p class="text-muted">Partagez votre avis sur les hôtels de votre voyage</p>
+        </div>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Liste des hôtels -->
+    <div class="row">
+        {% if hotels %}
+            {% for hotel_id, hotel_data in hotels.items() %}
+            {% set hotel = hotel_data.hotel %}
+            {% set user_review = hotel_data.user_review %}
+            {% set day_number = hotel_data.day_number %}
+            
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{{ hotel.name }}</h5>
+                            <small><i class="bi bi-geo-alt"></i> {{ hotel.city }}</small>
+                        </div>
+                        <span class="badge bg-light text-dark">Jour {{ day_number }}</span>
+                    </div>
+                    <div class="card-body">
+                        <!-- Adresse -->
+                        <p class="text-muted mb-2">
+                            <i class="bi bi-map"></i> {{ hotel.address }}
+                        </p>
+                        
+                        <!-- Note moyenne -->
+                        {% if hotel.ratings and hotel.ratings.averageRating %}
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="star-display me-2">
+                                    {% for i in range(5) %}
+                                        {% if i < hotel.ratings.averageRating|round|int %}
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        {% else %}
+                                        <i class="bi bi-star text-muted"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted">({{ hotel.ratings.averageRating|round(1) }} / 5 - {{ hotel.ratings.totalRatings }} avis)</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <hr>
+                        
+                        <!-- Formulaire d'évaluation ou affichage de l'évaluation existante -->
+                        {% if user_review %}
+                        <!-- Avis existant -->
+                        <div class="user-review" id="review-{{ hotel_id }}">
+                            <h6 class="text-success"><i class="bi bi-check-circle"></i> Votre avis</h6>
+                            
+                            <div class="star-display mb-2">
+                                {% for i in range(5) %}
+                                    {% if i < user_review.rating %}
+                                    <i class="bi bi-star-fill text-warning"></i>
+                                    {% else %}
+                                    <i class="bi bi-star text-muted"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            
+                            <p class="mb-2"><strong>{{ user_review.comment }}</strong></p>
+                            <small class="text-muted">Posté le {{ user_review.createdAt.strftime('%d/%m/%Y') if user_review.createdAt else '' }}</small>
+                            
+                            <div class="mt-3">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editReview('{{ hotel_id }}', '{{ user_review.id }}', {{ user_review.rating }}, '{{ user_review.comment }}')">
+                                    <i class="bi bi-pencil"></i> Modifier
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteReview('{{ booking.booking_id }}', '{{ hotel_id }}', '{{ user_review.id }}')">
+                                    <i class="bi bi-trash"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Formulaire d'ajout d'avis -->
+                        <form class="review-form" id="form-{{ hotel_id }}" onsubmit="submitReview(event, '{{ booking.booking_id }}', '{{ hotel_id }}')">
+                            <div class="mb-3">
+                                <label class="form-label">Votre note *</label>
+                                <div class="star-rating" data-hotel-id="{{ hotel_id }}">
+                                    <i class="bi bi-star" data-rating="1"></i>
+                                    <i class="bi bi-star" data-rating="2"></i>
+                                    <i class="bi bi-star" data-rating="3"></i>
+                                    <i class="bi bi-star" data-rating="4"></i>
+                                    <i class="bi bi-star" data-rating="5"></i>
+                                </div>
+                                <input type="hidden" name="rating" id="rating-{{ hotel_id }}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="comment-{{ hotel_id }}" class="form-label">Votre commentaire *</label>
+                                <textarea class="form-control" id="comment-{{ hotel_id }}" name="comment" rows="3" required placeholder="Partagez votre expérience..."></textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="visit-date-{{ hotel_id }}" class="form-label">Date de visite</label>
+                                <input type="date" class="form-control" id="visit-date-{{ hotel_id }}" name="visit_date" value="{{ booking.start_date }}">
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-send"></i> Publier mon avis
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Aucun hôtel à évaluer pour ce voyage.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Bouton retour -->
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <a href="{{ url_for('bookings.booking_detail', booking_id=booking.booking_id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Retour aux détails de la réservation
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Styles CSS -->
+<style>
+    /* Système d'étoiles pour l'affichage */
+    .star-display {
+        font-size: 1.2rem;
+    }
+    
+    /* Système d'étoiles pour la notation interactive */
+    .star-rating {
+        font-size: 2rem;
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+    }
+    
+    .star-rating i {
+        color: #ddd;
+        transition: color 0.2s ease;
+    }
+    
+    .star-rating i:hover,
+    .star-rating i.hover {
+        color: #ffc107;
+    }
+    
+    .star-rating i.selected {
+        color: #ffc107;
+    }
+    
+    .user-review {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #28a745;
+    }
+    
+    .card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+</style>
+
+<!-- JavaScript -->
+<script>
+// Initialise les systèmes d'étoiles interactifs
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.star-rating').forEach(starRating => {
+        const stars = starRating.querySelectorAll('i');
+        const hotelId = starRating.dataset.hotelId;
+        const ratingInput = document.getElementById(`rating-${hotelId}`);
+        
+        stars.forEach((star, index) => {
+            // Au survol
+            star.addEventListener('mouseenter', function() {
+                highlightStars(stars, index + 1);
+            });
+            
+            // Sortie du survol
+            starRating.addEventListener('mouseleave', function() {
+                const currentRating = parseInt(ratingInput.value) || 0;
+                highlightStars(stars, currentRating);
+            });
+            
+            // Au clic
+            star.addEventListener('click', function() {
+                const rating = parseInt(star.dataset.rating);
+                ratingInput.value = rating;
+                selectStars(stars, rating);
+            });
+        });
+    });
+});
+
+function highlightStars(stars, count) {
+    stars.forEach((star, index) => {
+        if (index < count) {
+            star.classList.add('hover');
+        } else {
+            star.classList.remove('hover');
+        }
+    });
+}
+
+function selectStars(stars, count) {
+    stars.forEach((star, index) => {
+        if (index < count) {
+            star.classList.add('selected');
+            star.classList.remove('bi-star');
+            star.classList.add('bi-star-fill');
+        } else {
+            star.classList.remove('selected');
+            star.classList.remove('bi-star-fill');
+            star.classList.add('bi-star');
+        }
+    });
+}
+
+// Soumettre un avis
+async function submitReview(event, bookingId, hotelId) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const rating = document.getElementById(`rating-${hotelId}`).value;
+    const comment = document.getElementById(`comment-${hotelId}`).value;
+    const visitDate = document.getElementById(`visit-date-${hotelId}`).value;
+    
+    if (!rating) {
+        alert('Veuillez sélectionner une note en cliquant sur les étoiles.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/bookings/${bookingId}/hotels/${hotelId}/reviews`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                rating: parseInt(rating),
+                comment: comment,
+                visit_date: visitDate
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Recharge la page pour afficher le nouvel avis
+            window.location.reload();
+        } else {
+            alert('Erreur: ' + (data.error || 'Impossible d\'ajouter l\'avis'));
+        }
+    } catch (error) {
+        alert('Erreur réseau: ' + error);
+    }
+}
+
+// Éditer un avis
+function editReview(hotelId, reviewId, currentRating, currentComment) {
+    // Remplace l'affichage de l'avis par un formulaire d'édition
+    const reviewDiv = document.getElementById(`review-${hotelId}`);
+    
+    reviewDiv.innerHTML = `
+        <h6 class="text-primary"><i class="bi bi-pencil"></i> Modifier votre avis</h6>
+        <form onsubmit="updateReview(event, '{{ booking.booking_id }}', '${hotelId}', '${reviewId}')">
+            <div class="mb-3">
+                <label class="form-label">Votre note *</label>
+                <div class="star-rating" data-hotel-id="edit-${hotelId}">
+                    <i class="bi bi-star" data-rating="1"></i>
+                    <i class="bi bi-star" data-rating="2"></i>
+                    <i class="bi bi-star" data-rating="3"></i>
+                    <i class="bi bi-star" data-rating="4"></i>
+                    <i class="bi bi-star" data-rating="5"></i>
+                </div>
+                <input type="hidden" name="rating" id="rating-edit-${hotelId}" value="${currentRating}" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Votre commentaire *</label>
+                <textarea class="form-control" name="comment" id="comment-edit-${hotelId}" rows="3" required>${currentComment}</textarea>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check"></i> Enregistrer
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="window.location.reload()">
+                    <i class="bi bi-x"></i> Annuler
+                </button>
+            </div>
+        </form>
+    `;
+    
+    // Réinitialise le système d'étoiles pour l'édition
+    const starRating = document.querySelector(`[data-hotel-id="edit-${hotelId}"]`);
+    const stars = starRating.querySelectorAll('i');
+    const ratingInput = document.getElementById(`rating-edit-${hotelId}`);
+    
+    // Sélectionne les étoiles actuelles
+    selectStars(stars, currentRating);
+    
+    // Ajoute les event listeners
+    stars.forEach((star, index) => {
+        star.addEventListener('mouseenter', function() {
+            highlightStars(stars, index + 1);
+        });
+        
+        starRating.addEventListener('mouseleave', function() {
+            const currentRating = parseInt(ratingInput.value) || 0;
+            highlightStars(stars, currentRating);
+        });
+        
+        star.addEventListener('click', function() {
+            const rating = parseInt(star.dataset.rating);
+            ratingInput.value = rating;
+            selectStars(stars, rating);
+        });
+    });
+}
+
+// Mettre à jour un avis
+async function updateReview(event, bookingId, hotelId, reviewId) {
+    event.preventDefault();
+    
+    const rating = document.getElementById(`rating-edit-${hotelId}`).value;
+    const comment = document.getElementById(`comment-edit-${hotelId}`).value;
+    
+    try {
+        const response = await fetch(`/bookings/${bookingId}/hotels/${hotelId}/reviews/${reviewId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                rating: parseInt(rating),
+                comment: comment
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Erreur: ' + (data.error || 'Impossible de modifier l\'avis'));
+        }
+    } catch (error) {
+        alert('Erreur réseau: ' + error);
+    }
+}
+
+// Supprimer un avis
+async function deleteReview(bookingId, hotelId, reviewId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer votre avis ?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/bookings/${bookingId}/hotels/${hotelId}/reviews/${reviewId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Erreur: ' + (data.error || 'Impossible de supprimer l\'avis'));
+        }
+    } catch (error) {
+        alert('Erreur réseau: ' + error);
+    }
+}
+</script>
+{% endblock %}

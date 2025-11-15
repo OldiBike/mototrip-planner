@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Nos voyages - MotoTrip{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="container text-center text-white">
+        <h1 class="display-4 mb-3">🏍️ Découvrez nos voyages moto</h1>
+        <p class="lead">Aventures épiques à travers l'Europe</p>
+    </div>
+</div>
+
+<div class="container py-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    {% if trips %}
+        <div class="row g-4">
+            {% for trip in trips %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm hover-shadow">
+                    {% if trip.photos and trip.photos|length > 0 %}
+                    <img src="{{ trip.photos[0] }}" class="card-img-top" alt="{{ trip.name }}" style="height: 250px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center" style="height: 250px;">
+                        <i class="bi bi-image text-white" style="font-size: 3rem;"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">{{ trip.name }}</h5>
+                        
+                        {% if trip.description %}
+                        <p class="card-text text-muted">
+                            {{ trip.description[:150] }}{% if trip.description|length > 150 %}...{% endif %}
+                        </p>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            {% if trip.highlights %}
+                                {% for highlight in trip.highlights[:3] %}
+                                <span class="badge bg-info me-1 mb-1">{{ highlight }}</span>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mt-auto">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                {% if trip.duration %}
+                                <span class="text-muted"><i class="bi bi-calendar"></i> {{ trip.duration }}</span>
+                                {% endif %}
+                                {% if trip.pricePerPerson %}
+                                <span class="fw-bold text-primary fs-5">{{ trip.pricePerPerson }}€<small class="text-muted">/pers</small></span>
+                                {% endif %}
+                            </div>
+                            
+                            <a href="{{ url_for('trips.trip_detail', slug=trip.slug) }}" class="btn btn-primary w-100">
+                                Découvrir ce voyage
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3 text-muted">Aucun voyage disponible pour le moment</h4>
+            <p class="text-muted">Revenez bientôt pour découvrir nos prochaines aventures !</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.hover-shadow {
+    transition: all 0.3s ease;
+}
+.hover-shadow:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+}
+</style>
+{% endblock %}

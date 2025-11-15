@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extraction des données localStorage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #output {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Extraction des données MotoTrip</h1>
+        
+        <div class="instructions">
+            <h3>📋 Instructions :</h3>
+            <ol>
+                <li>Ouvrez d'abord l'ancienne app : <a href="https://oldibike.github.io/mototrip-planner/" target="_blank">https://oldibike.github.io/mototrip-planner/</a></li>
+                <li>Une fois sur la page, cliquez sur le bouton ci-dessous</li>
+                <li>Copiez le JSON qui s'affichera</li>
+                <li>Sauvegardez-le dans un fichier <code>voyages_export.json</code></li>
+            </ol>
+        </div>
+
+        <div class="warning">
+            ⚠️ <strong>Important :</strong> Ce script doit être exécuté sur la page <a href="https://oldibike.github.io/mototrip-planner/" target="_blank">oldibike.github.io/mototrip-planner</a> pour accéder aux données stockées.
+        </div>
+
+        <button onclick="extractData()">🚀 Extraire les données</button>
+        <button onclick="copyToClipboard()" id="copyBtn" style="display:none; background: #2196F3;">📋 Copier le JSON</button>
+        
+        <div id="output"></div>
+    </div>
+
+    <script>
+        let extractedData = null;
+
+        function extractData() {
+            const output = document.getElementById('output');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            try {
+                // Vérifie si on est sur le bon domaine
+                if (!window.location.href.includes('oldibike.github.io/mototrip-planner')) {
+                    output.innerHTML = '<span class="error">❌ Erreur : Vous devez être sur la page https://oldibike.github.io/mototrip-planner/ pour extraire les données.</span>';
+                    output.style.display = 'block';
+                    return;
+                }
+
+                // Extrait les données du localStorage
+                const userId = localStorage.getItem('savedUserId');
+                const accessCode = localStorage.getItem('accessCode');
+                
+                // Extrait les voyages et étapes depuis Firestore (si présents)
+                // Note: Ces données peuvent ne pas être dans localStorage mais dans IndexedDB (Firebase cache)
+                
+                const exportData = {
+                    timestamp: new Date().toISOString(),
+                    source: window.location.href,
+                    userId: userId,
+                    accessCode: accessCode,
+                    localStorage: {
+                        trips: localStorage.getItem('trips'),
+                        days: localStorage.getItem('days')
+                    },
+                    allLocalStorage: {}
+                };
+                
+                // Copie tout le localStorage
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key);
+                    exportData.allLocalStorage[key] = value;
+                }
+                
+                extractedData = JSON.stringify(exportData, null, 2);
+                
+                output.innerHTML = '<span class="success">✅ Données extraites avec succès !</span>\n\n' + 
+                                   '<strong>UserId:</strong> ' + (userId || 'Non trouvé') + '\n' +
+                                   '<strong>Code d\'accès:</strong> ' + (accessCode || 'Non trouvé') + '\n\n' +
+                                   '<strong>JSON complet :</strong>\n' + extractedData;
+                output.style.display = 'block';
+                copyBtn.style.display = 'inline-block';
+                
+                console.log('Données extraites:', exportData);
+                
+            } catch (error) {
+                output.innerHTML = '<span class="error">❌ Erreur lors de l\'extraction : ' + error.message + '</span>';
+                output.style.display = 'block';
+                console.error(error);
+            }
+        }
+
+        function copyToClipboard() {
+            if (!extractedData) {
+                alert('Aucune donnée à copier');
+                return;
+            }
+            
+            navigator.clipboard.writeText(extractedData).then(() => {
+                alert('✅ JSON copié dans le presse-papiers !');
+            }).catch(err => {
+                alert('❌ Erreur de copie : ' + err);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,732 @@
+<!-- Modale pour Ajouter/Éditer une Étape -->
+<div id="add-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95 my-8">
+        <div class="flex justify-between items-center mb-6">
+            <h3 id="day-modal-title" class="text-2xl font-semibold">Ajouter une nouvelle étape</h3>
+            <button type="button" id="search-nearby-hotels-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2" title="Rechercher des hôtels à proximité">
+                <i class="fas fa-search"></i>
+                <span class="hidden sm:inline">Hôtels à proximité</span>
+            </button>
+        </div>
+        <form id="add-day-form">
+            <input type="hidden" id="editing-day-id">
+            <div class="space-y-4">
+                <div>
+                    <label for="day-name" class="block text-sm font-medium text-gray-700">Nom du Jour (ex: Jour 1, Jour 2C)</label>
+                    <input type="text" id="day-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="day-city" class="block text-sm font-medium text-gray-700">Ville</label>
+                    <input type="text" 
+                           id="day-city" 
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="Ex: Epinal, France" 
+                           required>
+                    <p class="mt-1 text-xs text-gray-500">L'autocomplétion Google Maps validera la ville</p>
+                </div>
+                
+                <!-- Sélection Hôtel depuis la Banque -->
+                <div class="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-lg border border-purple-200">
+                    <label for="day-hotel-select" class="block text-sm font-medium text-gray-700 mb-2">
+                        🏨 Sélectionner depuis la banque d'hôtels
+                    </label>
+                    <select id="day-hotel-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 bg-white">
+                        <option value="">-- Choisir un hôtel existant --</option>
+                        <!-- Les hôtels seront chargés dynamiquement -->
+                    </select>
+                    <p class="mt-2 text-xs text-gray-600">
+                        ✨ Les prix seront automatiquement pré-remplis
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-center text-gray-400 text-sm">
+                    <span class="px-3">OU</span>
+                </div>
+                
+                <div>
+                    <label for="day-hotel-name" class="block text-sm font-medium text-gray-700">Nom de l'hôtel (saisie manuelle)</label>
+                    <input type="text" id="day-hotel-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Logis Hôtel Atrium">
+                    <p class="mt-1 text-xs text-gray-500">Laissez vide si vous avez sélectionné depuis la banque</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="day-price-double" class="block text-sm font-medium text-gray-700">Prix Double (€)</label>
+                        <input type="number" id="day-price-double" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label for="day-price-solo" class="block text-sm font-medium text-gray-700">Prix Solo (€)</label>
+                        <input type="number" id="day-price-solo" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="day-nights" class="block text-sm font-medium text-gray-700">Nombre de nuits <span class="text-xs text-gray-500">(optionnel)</span></label>
+                    <input type="number" id="day-nights" min="1" step="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="1">
+                    <p class="text-xs text-gray-500 mt-1">Indiquez si vous restez plusieurs nuits à cette étape. Le prix ne sera pas multiplié.</p>
+                </div>
+                
+                <div>
+                    <label for="day-gpx-file" class="block text-sm font-medium text-gray-700">Fichier GPX (ex: Jour 1)</label>
+                    <input type="text" id="day-gpx-file" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="day-hotel-link" class="block text-sm font-medium text-gray-700">URL Hôtel (RateHawk, etc.)</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="url" id="day-hotel-link" class="block w-full flex-1 rounded-none rounded-l-md px-3 py-2 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+                        <button type="button" id="open-hotel-link-btn" class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" title="Ouvrir le lien dans un nouvel onglet">
+                            <i class="fas fa-external-link-alt text-gray-500"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Option de téléchargement automatique des photos Google -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <label class="flex items-start cursor-pointer">
+                        <input type="checkbox" 
+                               id="auto-fetch-google-photos" 
+                               checked 
+                               class="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        <div class="flex-1">
+                            <span class="text-sm font-medium text-gray-900">
+                                📸 Télécharger automatiquement les photos Google
+                            </span>
+                            <p class="text-xs text-gray-600 mt-1">
+                                Récupère jusqu'à 5 photos de l'hôtel depuis Google Places (si disponibles et si l'hôtel n'a pas déjà de photos)
+                            </p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 mt-8">
+                <button type="button" id="cancel-add-day-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
+                <button type="submit" id="save-day-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">Enregistrer l'étape</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modale de Publication de Voyage -->
+<div id="publish-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl transform scale-95 my-8">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-semibold text-indigo-700">
+                <i class="fas fa-globe mr-2"></i>Publier le voyage
+            </h3>
+            <button type="button" id="close-publish-modal-btn" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        
+        <div class="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4">
+            <p class="text-sm text-blue-700">
+                <i class="fas fa-info-circle mr-2"></i>
+                En publiant ce voyage, il sera accessible aux clients via une URL personnalisée.
+            </p>
+        </div>
+
+        <form id="publish-form">
+            <input type="hidden" id="publishing-trip-id">
+            
+            <div class="space-y-5">
+                <!-- Slug -->
+                <div>
+                    <label for="publish-slug" class="block text-sm font-medium text-gray-700 mb-1">
+                        URL personnalisée (slug)
+                    </label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                            app.oldibike.be/voyageperso/
+                        </span>
+                        <input 
+                            type="text" 
+                            id="publish-slug" 
+                            class="flex-1 block w-full rounded-none rounded-r-md px-3 py-2 border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="voyage-exceptionnel"
+                            pattern="[a-z0-9\-]+"
+                        >
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Laissez vide pour génération automatique. Utilisez uniquement des lettres minuscules, chiffres et tirets.
+                    </p>
+                    <div id="slug-preview" class="mt-2 hidden">
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-link mr-1"></i>
+                            URL du voyage : <span id="slug-preview-url" class="font-mono text-indigo-600"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="publish-description" class="block text-sm font-medium text-gray-700 mb-1">
+                        Description pour les clients
+                    </label>
+                    <textarea 
+                        id="publish-description" 
+                        rows="4"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Décrivez ce voyage pour vos clients..."
+                    ></textarea>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Cette description sera visible par les clients sur la page du voyage.
+                    </p>
+                </div>
+
+                <!-- Prix de vente -->
+                <div>
+                    <label for="publish-price" class="block text-sm font-medium text-gray-700 mb-1">
+                        Prix de vente par personne (€)
+                    </label>
+                    <div class="mt-1 relative rounded-md shadow-sm">
+                        <input 
+                            type="number" 
+                            id="publish-price" 
+                            step="0.01"
+                            min="0"
+                            class="block w-full px-3 py-2 pr-12 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="0.00"
+                        >
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <span class="text-gray-500 sm:text-sm">€</span>
+                        </div>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Prix public que verront vos clients. Sera récupéré du voyage si laissé vide.
+                    </p>
+                </div>
+
+                <!-- Statut actif/inactif -->
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <label for="publish-active" class="font-medium text-gray-700">
+                            Activer le voyage
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Les voyages inactifs ne sont pas visibles par les clients
+                        </p>
+                    </div>
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none">
+                        <input 
+                            type="checkbox" 
+                            id="publish-active" 
+                            name="publish-active"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                            checked
+                        >
+                        <label 
+                            for="publish-active" 
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                        ></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-4 mt-8">
+                <button 
+                    type="button" 
+                    id="cancel-publish-btn" 
+                    class="bg-gray-300 text-gray-800 px-5 py-2 rounded-md hover:bg-gray-400 font-medium transition"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit" 
+                    id="confirm-publish-btn" 
+                    class="bg-indigo-600 text-white px-5 py-2 rounded-md hover:bg-indigo-700 font-medium transition flex items-center gap-2"
+                >
+                    <i class="fas fa-check"></i>
+                    Publier le voyage
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modale de Confirmation de Dépublication -->
+<div id="unpublish-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+        <h3 class="text-2xl font-semibold mb-4 text-red-600">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Dépublier le voyage ?
+        </h3>
+        <p class="text-gray-700 mb-6">
+            Êtes-vous sûr de vouloir dépublier ce voyage ? Il ne sera plus accessible aux clients.
+        </p>
+        <div class="flex justify-end gap-4">
+            <button 
+                type="button" 
+                id="cancel-unpublish-btn" 
+                class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium"
+            >
+                Annuler
+            </button>
+            <button 
+                type="button" 
+                id="confirm-unpublish-btn" 
+                class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium"
+            >
+                <i class="fas fa-times mr-2"></i>Dépublier
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale de Recherche d'Hôtels à Proximité -->
+<div id="nearby-hotels-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl transform scale-95 my-8">
+        <h3 class="text-2xl font-semibold mb-4 text-indigo-600">
+            <i class="fas fa-search mr-2"></i>Rechercher des hôtels à proximité
+        </h3>
+        <p class="text-gray-700 mb-4">
+            Entrez le nom d'une ville pour rechercher les hôtels que vous avez déjà utilisés dans un rayon de 20km.
+        </p>
+        <div class="mb-4">
+            <label for="search-nearby-city-input" class="block text-sm font-medium text-gray-700 mb-2">
+                Ville à rechercher :
+            </label>
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="search-nearby-city-input" 
+                    placeholder="Ex: Lyon, Besançon..."
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                <button type="button" id="perform-search-btn" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 font-medium">
+                    <i class="fas fa-search mr-2"></i>Rechercher
+                </button>
+            </div>
+        </div>
+        
+        <!-- Zone de résultats -->
+        <div id="search-results" class="hidden">
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold text-lg mb-3">Hôtels trouvés à proximité :</h4>
+                <div id="results-list" class="space-y-2 max-h-96 overflow-y-auto">
+                    <!-- Les résultats seront injectés ici -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Message si aucun résultat -->
+        <div id="no-results" class="hidden border-t pt-4 mt-4">
+            <p class="text-gray-600 text-center py-4">
+                <i class="fas fa-info-circle mr-2"></i>
+                Aucun hôtel trouvé dans un rayon de 20km autour de cette ville.
+            </p>
+        </div>
+        
+        <!-- Loader -->
+        <div id="search-loader" class="hidden border-t pt-4 mt-4">
+            <div class="flex flex-col items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Recherche en cours...</p>
+            </div>
+        </div>
+        
+        <div class="flex justify-end gap-4 mt-6">
+            <button type="button" id="close-nearby-hotels-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                Fermer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Gestionnaire de Médias -->
+<div id="media-manager-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
+    <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-5xl transform scale-95 my-8 max-h-[90vh] overflow-hidden flex flex-col">
+        
+        <!-- En-tête -->
+        <div class="flex justify-between items-center p-6 border-b">
+            <h3 class="text-2xl font-semibold text-gray-900">
+                <i class="fas fa-images mr-2 text-purple-600"></i>
+                Médias - <span id="media-trip-name"></span>
+            </h3>
+            <button type="button" id="close-media-manager-btn" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+
+        <!-- Onglets -->
+        <div class="flex border-b bg-gray-50">
+            <button id="tab-general-btn" class="flex-1 px-6 py-3 font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-purple-600 transition-colors">
+                <i class="fas fa-mountain mr-2"></i>Cols & Routes
+            </button>
+            <button id="tab-hotels-btn" class="flex-1 px-6 py-3 font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-transparent transition-colors">
+                <i class="fas fa-hotel mr-2"></i>Hôtels
+            </button>
+        </div>
+
+        <!-- Contenu dynamique des onglets -->
+        <div class="flex-1 overflow-y-auto p-6">
+            
+            <!-- ONGLET 1 : Cols & Routes -->
+            <div id="tab-general-content" class="space-y-4">
+                
+                <!-- Barre de recherche -->
+                <div class="flex gap-3">
+                    <div class="flex-1 relative">
+                        <input type="text" 
+                               id="search-city-input" 
+                               list="search-cities-datalist"
+                               placeholder="Ex: Orbey, Colmar, Besançon..."
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+                    </div>
+                </div>
+                <datalist id="search-cities-datalist">
+                    <!-- France -->
+                    <option value="Annecy, France">
+                    <option value="Besançon, France">
+                    <option value="Briançon, France">
+                    <option value="Chamonix, France">
+                    <option value="Colmar, France">
+                    <option value="Embrun, France">
+                    <option value="Épinal, France">
+                    <option value="Gap, France">
+                    <option value="Grenoble, France">
+                    <option value="Morzine, France">
+                    <option value="Nancy, France">
+                    <option value="Orbey, France">
+                    <option value="Strasbourg, France">
+                    <!-- Suisse -->
+                    <option value="Andermatt, Suisse">
+                    <option value="Genève, Suisse">
+                    <option value="Interlaken, Suisse">
+                    <option value="Lausanne, Suisse">
+                    <option value="Locarno, Suisse">
+                    <option value="Lugano, Suisse">
+                    <option value="Montreux, Suisse">
+                    <option value="Saint-Moritz, Suisse">
+                    <option value="Zermatt, Suisse">
+                    <!-- Italie -->
+                    <option value="Bolzano, Italie">
+                    <option value="Bormio, Italie">
+                    <option value="Brescia, Italie">
+                    <option value="Cortina d'Ampezzo, Italie">
+                    <option value="Livigno, Italie">
+                    <option value="Madonna di Campiglio, Italie">
+                    <option value="Merano, Italie">
+                    <option value="Sondrio, Italie">
+                    <option value="Trente, Italie">
+                    <!-- Autriche -->
+                    <option value="Innsbruck, Autriche">
+                    <option value="Kitzbühel, Autriche">
+                    <option value="Klagenfurt, Autriche">
+                    <option value="Lienz, Autriche">
+                    <option value="Salzbourg, Autriche">
+                    <option value="Zell am See, Autriche">
+                    <!-- Allemagne -->
+                    <option value="Berchtesgaden, Allemagne">
+                    <option value="Fribourg, Allemagne">
+                    <option value="Garmisch-Partenkirchen, Allemagne">
+                    <option value="Munich, Allemagne">
+                    <option value="Oberammergau, Allemagne">
+                    <!-- Slovénie -->
+                    <option value="Bled, Slovénie">
+                    <option value="Kranjska Gora, Slovénie">
+                    <option value="Ljubljana, Slovénie">
+                </datalist>
+
+                <!-- Boutons -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <input type="file" id="upload-general-input" accept="image/*" multiple class="hidden">
+                        <button id="upload-general-btn" class="w-full bg-purple-600 text-white px-4 py-3 rounded-md hover:bg-purple-700 font-medium flex items-center justify-center gap-2">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            Ajouter des photos
+                        </button>
+                    </div>
+                    <div>
+                        <button id="browse-library-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
+                            <i class="fas fa-book mr-2"></i>
+                            Bibliothèque complète
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tags populaires -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-2">
+                        <i class="fas fa-tags mr-2"></i>Tags populaires :
+                    </p>
+                    <div id="popular-tags-container" class="flex flex-wrap gap-2">
+                        <!-- Les tags seront injectés dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Galerie de photos -->
+                <div id="general-photos-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
+                    <!-- Les photos seront injectées ici -->
+                </div>
+
+                <!-- Message si vide -->
+                <div id="no-general-photos" class="text-center py-12 text-gray-500 hidden">
+                    <i class="fas fa-images text-5xl mb-4 opacity-50"></i>
+                    <p>Aucune photo. Ajoutez des photos de vos cols et routes !</p>
+                </div>
+
+                <!-- Monitoring espace -->
+                <div class="bg-blue-50 p-4 rounded-lg mt-6">
+                    <p class="text-sm text-gray-600 mb-2">
+                        📊 Espace utilisé : <strong id="space-used-general">0 MB</strong> / 5 GB
+                    </p>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="space-bar-general" class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ONGLET 2 : Hôtels -->
+            <div id="tab-hotels-content" class="space-y-4 hidden">
+                
+                <!-- Barre de recherche hôtel -->
+                <div class="flex gap-3">
+                    <div class="flex-1 relative">
+                        <input type="text" 
+                               id="search-hotels-input" 
+                               placeholder="Rechercher un hôtel..."
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <!-- Bouton upload -->
+                <div>
+                    <input type="file" id="upload-hotel-input" accept="image/*" multiple class="hidden">
+                    <button id="upload-hotel-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
+                        <i class="fas fa-hotel mr-2"></i>
+                        Ajouter photos d'hôtel
+                    </button>
+                </div>
+
+                <!-- Liste des hôtels avec photos -->
+                <div id="hotels-photos-list" class="space-y-4 mt-6">
+                    <!-- Les hôtels seront injectés ici -->
+                </div>
+
+                <!-- Message si vide -->
+                <div id="no-hotel-photos" class="text-center py-12 text-gray-500 hidden">
+                    <i class="fas fa-hotel text-5xl mb-4 opacity-50"></i>
+                    <p>Aucune photo d'hôtel. Uploadez des photos de vos hébergements !</p>
+                </div>
+
+                <!-- Monitoring espace -->
+                <div class="bg-blue-50 p-4 rounded-lg mt-6">
+                    <p class="text-sm text-gray-600 mb-2">
+                        📊 Espace utilisé : <strong id="space-used-hotels">0 MB</strong> / 5 GB
+                    </p>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="space-bar-hotels" class="bg-indigo-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- Modale de Tagging -->
+<div id="tagging-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-[60]">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+        <h3 class="text-xl font-semibold mb-4 text-purple-600">
+            <i class="fas fa-tags mr-2"></i>Ajouter des tags
+        </h3>
+        
+        <p class="text-gray-600 mb-4">
+            Vous uploadez <strong id="files-count">0</strong> photo(s)
+        </p>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Tags (séparés par virgule) :
+            </label>
+            <input type="text" 
+                   id="tags-input" 
+                   placeholder="Ex: Stelvio, Col, Italie"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+        </div>
+
+        <div class="mb-6">
+            <p class="text-sm text-gray-600 mb-2">Suggestions :</p>
+            <div id="suggested-tags" class="flex flex-wrap gap-2">
+                <!-- Tags suggérés injectés ici -->
+            </div>
+        </div>
+
+        <!-- Barre de progression -->
+        <div id="upload-progress-container" class="mb-4 hidden">
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div id="upload-progress-bar" class="bg-purple-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+            </div>
+            <p class="text-sm text-gray-600 mt-2 text-center">
+                Upload en cours... <span id="upload-progress-text">0%</span>
+            </p>
+        </div>
+
+        <div class="flex justify-end gap-4">
+            <button type="button" id="cancel-tagging-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                Annuler
+            </button>
+            <button type="button" id="confirm-upload-general-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Uploader
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale de Sélection d'Hôtel -->
+<div id="hotel-selection-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-[60]">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95 max-h-[80vh] overflow-hidden flex flex-col">
+        <h3 class="text-xl font-semibold mb-4 text-indigo-600">
+            <i class="fas fa-hotel mr-2"></i>Sélectionner un hôtel
+        </h3>
+        
+        <p class="text-gray-600 mb-4">
+            Vous uploadez <strong id="hotel-files-count">0</strong> photo(s)
+        </p>
+
+        <div class="mb-4 flex-1 overflow-hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Choisir l'étape/hôtel :
+            </label>
+            <div id="hotels-list-selection" class="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-2">
+                <!-- Liste des hôtels injectée ici -->
+            </div>
+        </div>
+
+        <!-- Barre de progression -->
+        <div id="upload-hotel-progress-container" class="mb-4 hidden">
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div id="upload-hotel-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+            </div>
+            <p class="text-sm text-gray-600 mt-2 text-center">
+                Upload en cours... <span id="upload-hotel-progress-text">0%</span>
+            </p>
+        </div>
+
+        <div class="flex justify-end gap-4 mt-4">
+            <button type="button" id="cancel-hotel-selection-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                Annuler
+            </button>
+            <button type="button" id="confirm-upload-hotel-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium" disabled>
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Uploader
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Lightbox Photos Hôtel -->
+<div id="hotel-lightbox-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center p-4 hidden z-[60]">
+    <div class="w-full max-w-4xl">
+        
+        <!-- En-tête -->
+        <div class="flex justify-between items-center mb-4 text-white">
+            <div>
+                <h3 class="text-xl font-semibold" id="lightbox-hotel-name"></h3>
+                <p class="text-sm text-gray-300" id="lightbox-day-name"></p>
+            </div>
+            <button type="button" id="close-lightbox-btn" class="text-white hover:text-gray-300 text-3xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Image principale -->
+        <div class="relative bg-black rounded-lg overflow-hidden mb-4" style="min-height: 400px;">
+            <img id="lightbox-main-image" src="" alt="" class="w-full h-auto max-h-[70vh] object-contain">
+            
+            <!-- Boutons navigation -->
+            <button id="lightbox-prev-btn" class="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-900 w-12 h-12 rounded-full flex items-center justify-center">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="lightbox-next-btn" class="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-900 w-12 h-12 rounded-full flex items-center justify-center">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <!-- Miniatures -->
+        <div id="lightbox-thumbnails" class="flex gap-2 overflow-x-auto pb-2">
+            <!-- Miniatures injectées ici -->
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-between items-center text-white mt-4">
+            <p class="text-sm">
+                Photo <span id="lightbox-current-index">1</span> / <span id="lightbox-total-count">1</span>
+            </p>
+            <button id="lightbox-download-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium">
+                <i class="fas fa-download mr-2"></i>Télécharger
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modale d'Attribution Photo POI -->
+<div id="assign-photo-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-[60]">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+        <h3 class="text-xl font-semibold mb-4 text-purple-600">
+            <i class="fas fa-plus-circle mr-2"></i>Ajouter au voyage
+        </h3>
+        
+        <p class="text-gray-700 mb-4">
+            Voulez-vous ajouter cette photo au voyage <strong id="assign-trip-name"></strong> ?
+        </p>
+
+        <div class="mb-4">
+            <img id="assign-photo-preview" src="" alt="" class="w-full h-48 object-cover rounded-lg border border-gray-300">
+        </div>
+
+        <div class="mb-4">
+            <p class="text-sm text-gray-600">
+                <i class="fas fa-tags mr-2"></i>Tags : <span id="assign-photo-tags" class="font-semibold"></span>
+            </p>
+        </div>
+
+        <div class="flex justify-end gap-4">
+            <button type="button" id="cancel-assign-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
+                Annuler
+            </button>
+            <button type="button" id="confirm-assign-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
+                <i class="fas fa-check mr-2"></i>Ajouter
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Lightbox Photo (générale) -->
+<div id="photo-lightbox-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center p-4 hidden z-[60]">
+    <div class="w-full max-w-4xl">
+        
+        <!-- En-tête -->
+        <div class="flex justify-between items-center mb-4 text-white">
+            <div>
+                <p class="text-sm text-gray-300" id="lightbox-filename">Photo</p>
+                <p class="text-xs text-gray-400" id="lightbox-counter">1 / 1</p>
+            </div>
+            <button type="button" onclick="closeLightbox()" class="text-white hover:text-gray-300 text-3xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Image principale -->
+        <div class="relative bg-black rounded-lg overflow-hidden mb-4" style="min-height: 400px;">
+            <img id="lightbox-image" src="" alt="" class="w-full h-auto max-h-[70vh] object-contain">
+            
+            <!-- Boutons navigation -->
+            <button id="lightbox-prev-btn" onclick="lightboxPrev()" class="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-900 w-12 h-12 rounded-full flex items-center justify-center">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="lightbox-next-btn" onclick="lightboxNext()" class="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-900 w-12 h-12 rounded-full flex items-center justify-center">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <!-- Tags (si photo générale) -->
+        <div id="lightbox-tags" class="flex flex-wrap gap-2 mb-4">
+            <!-- Tags injectés ici -->
+        </div>
+
+    </div>
+</div>
