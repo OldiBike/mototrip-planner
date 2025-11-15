@@ -330,21 +330,30 @@ def login():
         return redirect(url_for('admin.dashboard'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
+        email = request.form.get('username')  # Le champ s'appelle username mais on attend un email
         password = request.form.get('password')
         remember = request.form.get('remember')
         
-        # Vérification des credentials
-        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
-            # Connexion réussie
-            session['admin_logged_in'] = True
-            session['admin_username'] = username
-            
-            # Remember me (session permanente)
-            if remember:
-                session.permanent = True
-            
-            return redirect(url_for('admin.dashboard'))
+        # Vérifie avec Firebase
+        firebase = get_firebase_service()
+        user = firebase.get_user_by_email(email.lower().strip())
+        
+        if user and check_password_hash(user.password_hash, password):
+            # Vérifie que c'est un admin
+            if user.role == 'admin':
+                # Connexion réussie
+                session['admin_logged_in'] = True
+                session['admin_username'] = user.name
+                session['admin_email'] = user.email
+                session['admin_user_id'] = user.id
+                
+                # Remember me (session permanente)
+                if remember:
+                    session.permanent = True
+                
+                return redirect(url_for('admin.dashboard'))
+            else:
+                return render_template('admin/login.html', error='Accès réservé aux administrateurs')
         else:
             # Échec de connexion
             return render_template('admin/login.html', error='Login ou mot de passe incorrect')

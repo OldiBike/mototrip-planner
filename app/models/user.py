@@ -9,12 +9,14 @@ class User:
     """Modèle représentant un utilisateur client"""
     
     def __init__(self, user_id, email, password_hash=None, first_name='', last_name='', 
-                 phone='', role='customer', created_at=None, is_active=True, email_verified=False):
+                 phone='', role='customer', created_at=None, is_active=True, email_verified=False, name=''):
         self.user_id = user_id
+        self.id = user_id  # Alias pour compatibilité
         self.email = email
         self.password_hash = password_hash
         self.first_name = first_name
         self.last_name = last_name
+        self.name = name or f"{first_name} {last_name}".strip() or email  # Nom complet
         self.phone = phone
         self.role = role  # "customer" | "admin"
         self.created_at = created_at or datetime.now().isoformat()
@@ -58,6 +60,7 @@ class User:
             password_hash=data.get('passwordHash'),
             first_name=data.get('firstName', ''),
             last_name=data.get('lastName', ''),
+            name=data.get('name', ''),
             phone=data.get('phone', ''),
             role=data.get('role', 'customer'),
             created_at=data.get('createdAt'),

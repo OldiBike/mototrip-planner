@@ -75,3 +75,16 @@ htmlcov/
 
 # Railway
 .railway/
+
+# Scripts et documentation avec infos sensibles
+DEMARRAGE_RAPIDE.md
+reset_password.py
+create_admin_user.py
+list_users.py
+
+# Fichiers de migration et exploration
+migrate_trips.py
+list_firebase_trips.py
+explore_firebase_structure.py
+fix_hotel_photos_phase4.py
+extract_localStorage_data.html
