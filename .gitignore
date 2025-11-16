@@ -78,9 +78,12 @@ htmlcov/
 
 # Scripts et documentation avec infos sensibles
 DEMARRAGE_RAPIDE.md
+CREATION_USER_PRODUCTION.md
 reset_password.py
 create_admin_user.py
 list_users.py
+create_prod_admin.py
+temp_create_admin.py
 
 # Fichiers de migration et exploration
 migrate_trips.py

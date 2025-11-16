@@ -6,7 +6,7 @@ python-dotenv==1.0.0
 firebase-admin==6.3.0
 stripe==7.7.0
 gunicorn==21.2.0
-# psycopg2-binary==2.9.9  # Désactivé pour Python 3.13 - à réactiver pour Railway avec PostgreSQL
+psycopg2-binary==2.9.9
 Flask-CORS==4.0.0
 Werkzeug==3.0.1
 requests==2.31.0
