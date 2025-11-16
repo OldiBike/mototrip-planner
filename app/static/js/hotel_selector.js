@@ -66,10 +66,8 @@ function populateHotelDropdown() {
         const option = document.createElement('option');
         option.value = hotel.id;
         
-        // Texte affiché : "Nom - Ville (Prix Double / Prix Solo)"
-        const priceDouble = hotel.defaultPricing?.priceDouble || 0;
-        const priceSolo = hotel.defaultPricing?.priceSolo || 0;
-        option.textContent = `${hotel.name} - ${hotel.city} (${priceDouble.toFixed(0)}€ / ${priceSolo.toFixed(0)}€)`;
+        // Texte affiché : "Nom - Ville" (SANS les prix)
+        option.textContent = `${hotel.name} - ${hotel.city}`;
         
         // Stocke les données complètes dans un data attribute
         option.dataset.hotelData = JSON.stringify(hotel);
@@ -101,20 +99,15 @@ function setupHotelSelectorListeners() {
                 const hotel = JSON.parse(selectedOption.dataset.hotelData);
                 selectedHotelId = hotel.id;
                 
-                // Pré-remplit les champs
+                // Pré-remplit UNIQUEMENT le nom (PAS les prix)
                 if (manualInput) {
                     manualInput.value = hotel.name;
                     manualInput.disabled = true;
                     manualInput.classList.add('bg-gray-100');
                 }
                 
-                if (priceDoubleInput) {
-                    priceDoubleInput.value = hotel.defaultPricing?.priceDouble || 0;
-                }
-                
-                if (priceSoloInput) {
-                    priceSoloInput.value = hotel.defaultPricing?.priceSolo || 0;
-                }
+                // ❌ NE PAS pré-remplir les prix - ils doivent être saisis manuellement selon les dates
+                // Les prix varient selon les dates du voyage !
                 
                 console.log(`✅ Hôtel sélectionné: ${hotel.name} (ID: ${hotel.id})`);
                 

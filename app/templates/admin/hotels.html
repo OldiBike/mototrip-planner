@@ -2,84 +2,140 @@
 
 {% block title %}Banque d'Hôtels - Admin{% endblock %}
 
+{% block extra_styles %}
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-out;
+    }
+    
+    .hotel-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .hotel-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid p-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <h1 class="h2 mb-0">
-                <i class="bi bi-building"></i> Banque d'Hôtels
-            </h1>
-            <p class="text-muted">Gérez vos hôtels et réutilisez-les dans vos voyages</p>
-        </div>
-        <div class="col-md-6 text-end">
-            <button class="btn btn-primary" id="btnNewHotel">
-                <i class="bi bi-plus-circle"></i> Nouvel Hôtel
-            </button>
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Retour
-            </a>
-        </div>
-    </div>
-
-    <!-- Statistiques globales -->
-    <div class="row mb-4" id="statsSection">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Total Hôtels</h5>
-                    <h2 class="mb-0" id="statTotalHotels">0</h2>
+<div class="min-h-screen bg-gray-50">
+    <!-- Header avec Navigation -->
+    <div class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="text-gray-600 hover:text-gray-900 transition">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">
+                            <i class="fas fa-hotel text-blue-600"></i> Banque d'Hôtels
+                        </h1>
+                        <p class="text-sm text-gray-500">Gérez vos hôtels et réutilisez-les dans vos voyages</p>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Villes</h5>
-                    <h2 class="mb-0" id="statCities">0</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Note Moyenne</h5>
-                    <h2 class="mb-0">
-                        ⭐ <span id="statAvgRating">0.0</span>
-                    </h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Total Avis</h5>
-                    <h2 class="mb-0" id="statTotalReviews">0</h2>
-                </div>
+                <button onclick="openHotelModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
+                    <i class="fas fa-plus mr-2"></i>
+                    Nouvel Hôtel
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Barre de recherche et filtres -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <input type="text" class="form-control" id="searchInput" 
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Statistiques -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Total Hôtels -->
+            <div class="stat-card from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-100 text-sm font-medium mb-1">Total Hôtels</p>
+                        <p class="text-3xl font-bold" id="statTotalHotels">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-hotel text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Villes -->
+            <div class="stat-card from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-green-100 text-sm font-medium mb-1">Villes</p>
+                        <p class="text-3xl font-bold" id="statCities">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-map-marker-alt text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Note Moyenne -->
+            <div class="stat-card from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-yellow-100 text-sm font-medium mb-1">Note Moyenne</p>
+                        <p class="text-3xl font-bold">
+                            ⭐ <span id="statAvgRating">0.0</span>
+                        </p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-star text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Avis -->
+            <div class="stat-card from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-purple-100 text-sm font-medium mb-1">Total Avis</p>
+                        <p class="text-3xl font-bold" id="statTotalReviews">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-comments text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barre de Recherche et Filtres -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Recherche -->
+                <div class="md:col-span-1">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" 
+                               class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                                placeholder="Rechercher un hôtel...">
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="cityFilter">
+
+                <!-- Filtre Ville -->
+                <div class="md:col-span-1">
+                    <select id="cityFilter" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <option value="">Toutes les villes</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="sortBy">
+
+                <!-- Tri -->
+                <div class="md:col-span-1">
+                    <select id="sortBy" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <option value="name">Trier par nom</option>
                         <option value="rating">Trier par note</option>
                         <option value="usage">Trier par utilisation</option>
@@ -88,130 +144,163 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Liste des hôtels -->
-    <div id="hotelsContainer">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Chargement...</span>
+        <!-- Liste des Hôtels -->
+        <div id="hotelsContainer">
+            <div class="flex justify-center items-center py-20">
+                <div class="text-center">
+                    <div class="spinner mx-auto mb-4"></div>
+                    <p class="text-gray-500">Chargement des hôtels...</p>
+                </div>
             </div>
-            <p class="mt-3 text-muted">Chargement des hôtels...</p>
         </div>
-    </div>
 
-    <!-- Message si aucun hôtel -->
-    <div id="emptyState" class="text-center py-5 d-none">
-        <i class="bi bi-building text-muted" style="font-size: 4rem;"></i>
-        <h3 class="mt-3">Aucun hôtel dans la banque</h3>
-        <p class="text-muted">Commencez par ajouter votre premier hôtel</p>
-        <button class="btn btn-primary mt-3" onclick="document.getElementById('btnNewHotel').click()">
-            <i class="bi bi-plus-circle"></i> Ajouter un hôtel
-        </button>
+        <!-- État Vide -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
+                <i class="fas fa-hotel text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-2xl font-semibold text-gray-900 mb-2">Aucun hôtel dans la banque</h3>
+            <p class="text-gray-500 mb-6">Commencez par ajouter votre premier hôtel</p>
+            <button onclick="openHotelModal()" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+                <i class="fas fa-plus mr-2"></i>
+                Ajouter un hôtel
+            </button>
+        </div>
     </div>
 </div>
 
 <!-- Modale Nouvel Hôtel / Modifier Hôtel -->
-<div class="modal fade" id="hotelModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="hotelModalTitle">Nouvel Hôtel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div id="hotelModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 transform transition-all">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-900" id="hotelModalTitle">Nouvel Hôtel</h3>
+                <button onclick="closeHotelModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
             </div>
-            <div class="modal-body">
-                <form id="hotelForm">
-                    <input type="hidden" id="hotelId">
+
+            <!-- Formulaire -->
+            <form id="hotelForm" class="space-y-6">
+                <input type="hidden" id="hotelId">
+
+                <!-- Auto-remplissage RateHawk -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-200">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                        <i class="fas fa-magic text-blue-600 mr-2"></i>
+                        Auto-remplissage rapide
+                    </h4>
+                    <div>
+                        <label for="ratehawkUrl" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-link mr-1"></i> URL RateHawk de l'hôtel
+                        </label>
+                        <input type="url" id="ratehawkUrl" placeholder="Collez l'URL RateHawk ici pour remplir automatiquement..."
+                               class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <p class="mt-2 text-xs text-gray-500">
+                            <i class="fas fa-info-circle"></i> Exemple: https://worldota.net/hotel/hotel_name_city/...
+                        </p>
+                        <div id="ratehawkLoading" class="hidden mt-2 flex items-center text-blue-600">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            <span>Récupération des informations...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations de base -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                        Informations de base
+                    </h4>
                     
-                    <!-- Informations de base -->
-                    <div class="mb-4">
-                        <h6 class="border-bottom pb-2">Informations de base</h6>
-                        
-                        <div class="mb-3">
-                            <label for="hotelName" class="form-label">Nom de l'hôtel <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="hotelName" required>
-                            <div class="form-text">Le nom complet de l'hôtel</div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="hotelCity" class="form-label">Ville <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="hotelCity" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="hotelAddress" class="form-label">Adresse complète</label>
-                                <input type="text" class="form-control" id="hotelAddress">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Contact -->
-                    <div class="mb-4">
-                        <h6 class="border-bottom pb-2">Contact</h6>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="hotelPhone" class="form-label">Téléphone</label>
-                                <input type="tel" class="form-control" id="hotelPhone">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="hotelEmail" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="hotelEmail">
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="hotelWebsite" class="form-label">Site web</label>
-                            <input type="url" class="form-control" id="hotelWebsite" 
-                                   placeholder="https://...">
-                        </div>
-                    </div>
-
-                    <!-- Prix par défaut -->
-                    <div class="mb-4">
-                        <h6 class="border-bottom pb-2">Prix par défaut</h6>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="priceDouble" class="form-label">
-                                    Prix chambre double <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="priceDouble" 
-                                           step="0.01" min="0" required>
-                                    <span class="input-group-text">€</span>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="priceSolo" class="form-label">
-                                    Prix chambre solo <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="priceSolo" 
-                                           step="0.01" min="0" required>
-                                    <span class="input-group-text">€</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Options -->
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="downloadGooglePhotos" checked>
-                            <label class="form-check-label" for="downloadGooglePhotos">
-                                Télécharger automatiquement 5 photos depuis Google Places
+                    <div class="space-y-4">
+                        <div>
+                            <label for="hotelName" class="block text-sm font-medium text-gray-700 mb-2">
+                                Nom de l'hôtel <span class="text-red-500">*</span>
                             </label>
+                            <input type="text" id="hotelName" required
+                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="hotelCity" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Ville <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="hotelCity" required
+                                       class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                            </div>
+                            <div>
+                                <label for="hotelAddress" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Adresse complète
+                                </label>
+                                <input type="text" id="hotelAddress"
+                                       class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-phone text-blue-600 mr-2"></i>
+                        Contact
+                    </h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="hotelPhone" class="block text-sm font-medium text-gray-700 mb-2">
+                                Téléphone
+                            </label>
+                            <input type="tel" id="hotelPhone"
+                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        </div>
+                        <div>
+                            <label for="hotelEmail" class="block text-sm font-medium text-gray-700 mb-2">
+                                Email
+                            </label>
+                            <input type="email" id="hotelEmail"
+                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         </div>
                     </div>
 
-                    <input type="hidden" id="googlePlaceId">
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="btnSaveHotel">
-                    <i class="bi bi-check-circle"></i> Enregistrer
+                    <div class="mt-4">
+                        <label for="hotelWebsite" class="block text-sm font-medium text-gray-700 mb-2">
+                            Site web
+                        </label>
+                        <input type="url" id="hotelWebsite" placeholder="https://..."
+                               class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="bg-blue-50 rounded-lg p-4">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="downloadGooglePhotos" checked
+                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <span class="ml-3 text-sm text-gray-700">
+                            <i class="fas fa-images text-blue-600 mr-1"></i>
+                            Télécharger automatiquement 5 photos depuis Google Places
+                        </span>
+                    </label>
+                </div>
+
+                <input type="hidden" id="googlePlaceId">
+            </form>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button type="button" onclick="closeHotelModal()"
+                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    Annuler
+                </button>
+                <button type="button" id="btnSaveHotel" onclick="saveHotel()"
+                        class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+                    <i class="fas fa-check mr-2"></i>
+                    Enregistrer
                 </button>
             </div>
         </div>
@@ -219,77 +308,139 @@
 </div>
 
 <!-- Modale Détails Hôtel -->
-<div class="modal fade" id="hotelDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="detailsHotelName">Détails de l'hôtel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div id="hotelDetailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 transform transition-all">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-900" id="detailsHotelName">Détails de l'hôtel</h3>
+                <button onclick="closeDetailsModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
             </div>
-            <div class="modal-body" id="hotelDetailsContent">
+
+            <!-- Contenu -->
+            <div id="hotelDetailsContent" class="space-y-6">
                 <!-- Contenu chargé dynamiquement -->
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+                <div class="flex items-center space-x-3">
+                    <button type="button" id="viewGalleryBtn" class="hidden px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition">
+                        <i class="fas fa-images mr-2"></i>
+                        Voir la Galerie
+                    </button>
+                    <button type="button" id="uploadPhotosBtn" class="hidden px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition">
+                        <i class="fas fa-upload mr-2"></i>
+                        Upload Photos
+                    </button>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button type="button" id="editHotelBtn" class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+                        <i class="fas fa-edit mr-2"></i>
+                        Modifier
+                    </button>
+                    <button type="button" onclick="closeDetailsModal()"
+                            class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">
+                        Fermer
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Styles personnalisés -->
-<style>
-.hotel-card {
-    transition: all 0.3s ease;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    overflow: hidden;
-}
+<!-- Modale Galerie Photos -->
+<div id="galleryModal" class="fixed inset-0 bg-black bg-opacity-95 hidden z-[60] overflow-hidden">
+    <div class="h-full flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-6 text-white">
+            <h3 class="text-2xl font-bold" id="galleryHotelName">Galerie</h3>
+            <button onclick="closeGalleryModal()" class="text-white hover:text-gray-300 transition text-3xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <!-- Grille de photos -->
+        <div class="flex-1 overflow-y-auto px-6 pb-6">
+            <div id="galleryGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Photos chargées dynamiquement -->
+            </div>
+        </div>
+    </div>
+</div>
 
-.hotel-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    transform: translateY(-2px);
-}
+<!-- Modale Upload Photos Manuelles -->
+<div id="uploadPhotosModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 transform transition-all">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-900">
+                    <i class="fas fa-upload text-green-600 mr-2"></i>
+                    Upload Photos - <span id="uploadHotelName">Hôtel</span>
+                </h3>
+                <button onclick="closeUploadPhotosModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
 
-.hotel-card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1rem;
-}
+            <!-- Contenu -->
+            <div class="space-y-6">
+                <!-- Zone de drop -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500 transition-colors cursor-pointer"
+                     id="dropZone"
+                     onclick="document.getElementById('photoFiles').click()">
+                    <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                    <p class="text-lg font-semibold text-gray-700 mb-2">Cliquez pour sélectionner des photos</p>
+                    <p class="text-sm text-gray-500">ou glissez-déposez les fichiers ici</p>
+                    <p class="text-xs text-gray-400 mt-2">JPG, JPEG, PNG - Max 5MB par photo</p>
+                </div>
 
-.hotel-card-body {
-    padding: 1rem;
-}
+                <!-- Input file caché -->
+                <input type="file" 
+                       id="photoFiles" 
+                       accept="image/jpeg,image/jpg,image/png" 
+                       multiple 
+                       class="hidden"
+                       onchange="handlePhotosSelected(event)">
 
-.rating-badge {
-    background: #ffc107;
-    color: #000;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-weight: bold;
-}
+                <!-- Prévisualisation des photos sélectionnées -->
+                <div id="photosPreview" class="hidden">
+                    <h4 class="font-semibold text-gray-900 mb-3">Photos sélectionnées (<span id="photoCount">0</span>)</h4>
+                    <div id="previewGrid" class="grid grid-cols-3 gap-4">
+                        <!-- Miniatures générées dynamiquement -->
+                    </div>
+                </div>
 
-.usage-badge {
-    background: #17a2b8;
-    color: white;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.85rem;
-}
+                <!-- Barre de progression -->
+                <div id="uploadProgress" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Upload en cours...</span>
+                        <span class="text-sm font-medium text-gray-700" id="progressText">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="bg-green-600 h-2.5 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
 
-.price-tag {
-    background: #28a745;
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    display: inline-block;
-    margin-right: 0.5rem;
-}
-
-.star-rating {
-    color: #ffc107;
-    font-size: 1.2rem;
-}
-</style>
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button type="button" onclick="closeUploadPhotosModal()"
+                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    Annuler
+                </button>
+                <button type="button" id="btnUploadPhotos" onclick="uploadSelectedPhotos()" disabled
+                        class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-upload mr-2"></i>
+                    Upload Photos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="{{ url_for('static', filename='js/hotels.js') }}"></script>
 {% endblock %}
