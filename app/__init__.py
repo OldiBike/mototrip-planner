@@ -76,6 +76,22 @@ def create_app():
             return redirect(url_for('admin.dashboard'))
         return redirect(url_for('admin.login'))
     
+    # Healthcheck endpoint pour Railway
+    @app.route('/health')
+    def health():
+        """Endpoint de santé pour vérifier que l'app fonctionne"""
+        from flask import jsonify
+        return jsonify({
+            'status': 'healthy',
+            'message': 'MotoTrip Planner is running',
+            'database': app.config['SQLALCHEMY_DATABASE_URI'].split('@')[0] if '@' in app.config['SQLALCHEMY_DATABASE_URI'] else 'configured'
+        }), 200
+    
+    @app.route('/ping')
+    def ping():
+        """Simple ping endpoint"""
+        return 'pong', 200
+    
     # Gestion des erreurs
     @app.errorhandler(404)
     def not_found(error):
