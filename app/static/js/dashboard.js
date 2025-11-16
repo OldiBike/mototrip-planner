@@ -80,11 +80,46 @@ function initializeEventListeners() {
     
     document.getElementById('add-day-form')?.addEventListener('submit', saveDayForm);
     
-    // Gestion modale médias
-    document.getElementById('tab-general-btn')?.addEventListener('click', () => switchMediaTab('general'));
-    document.getElementById('tab-hotels-btn')?.addEventListener('click', () => switchMediaTab('hotels'));
+    // Gestion modale médias - Fermeture
     document.getElementById('close-media-manager-btn')?.addEventListener('click', () => {
         toggleModal('media-manager-modal', false);
+    });
+    
+    // ⭐ NOUVEAU : Bouton de recherche d'hôtels à proximité (manuel - conservé)
+    document.getElementById('search-nearby-hotels-btn')?.addEventListener('click', () => {
+        console.log('🔍 Bouton Hôtels à proximité cliqué');
+        const modal = document.getElementById('nearby-hotels-modal');
+        const searchInput = document.getElementById('search-nearby-city-input');
+        const searchResults = document.getElementById('search-results');
+        const noResults = document.getElementById('no-results');
+        const searchLoader = document.getElementById('search-loader');
+        
+        // Reset de la modale
+        if (searchInput) searchInput.value = '';
+        if (searchResults) searchResults.classList.add('hidden');
+        if (noResults) noResults.classList.add('hidden');
+        if (searchLoader) searchLoader.classList.add('hidden');
+        
+        if (modal) {
+            modal.classList.remove('hidden');
+            console.log('✅ Modale affichée');
+        } else {
+            console.error('❌ Modale nearby-hotels-modal introuvable');
+        }
+    });
+    
+    // Bouton de fermeture de la modale de recherche
+    document.getElementById('close-nearby-hotels-btn')?.addEventListener('click', () => {
+        console.log('🔴 Fermeture modale');
+        toggleModal('nearby-hotels-modal', false);
+    });
+    
+    // Bouton "Rechercher" dans la modale
+    document.getElementById('perform-search-btn')?.addEventListener('click', performManualSearch);
+    
+    // Recherche au clavier (Enter)
+    document.getElementById('search-nearby-city-input')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performManualSearch();
     });
 }
 
@@ -95,6 +130,11 @@ function initializeEventListeners() {
 // Variables Google Maps
 let cityAutocomplete = null;
 let hotelAutocomplete = null;
+
+// Variables pour la recherche d'hôtels à proximité
+let nearbyHotelsCache = null;
+let lastSearchedCity = null;
+let autocompleteJustUsed = false; // Flag pour détecter si autocomplete vient de s'exécuter
 
 function openAddDayModal() {
     if (!currentTripId) {
@@ -237,7 +277,10 @@ function initGoogleMapsAutocomplete() {
         });
 
         cityAutocomplete.addListener('place_changed', () => {
+            console.log('🔔 place_changed déclenché pour la ville');
             const place = cityAutocomplete.getPlace();
+            console.log('📍 Place reçu:', place);
+            
             if (!place.geometry) {
                 console.warn('❌ Aucune suggestion sélectionnée pour la ville');
                 return;
@@ -258,7 +301,15 @@ function initGoogleMapsAutocomplete() {
             
             if (cityName) {
                 cityInput.value = cityName;
-                console.log('✅ Ville validée:', cityName);
+                console.log('✅ Ville validée (autocomplétion):', cityName);
+                console.log('⏰ Lancement de la recherche d\'hôtels dans 200ms...');
+                
+                // ⭐ NOUVEAU : Déclenche automatiquement la recherche d'hôtels à proximité
+                // Petite temporisation pour laisser le temps au champ hôtel d'être rempli si extraction RateHawk
+                setTimeout(() => {
+                    console.log('🚀 Timeout écoulé, appel de autoCheckNearbyHotels');
+                    autoCheckNearbyHotels(cityName);
+                }, 200);
             }
         });
 
@@ -288,6 +339,21 @@ function initGoogleMapsAutocomplete() {
         });
 
         console.log('✅ Autocomplétion Google Maps activée');
+        
+        // ⭐ AJOUT : Listener pour saisie manuelle (sans autocomplétion)
+        cityInput.addEventListener('change', () => {
+            console.log('🔔 Événement change détecté sur le champ ville');
+            const manualCity = cityInput.value.trim();
+            if (manualCity) {
+                console.log('📝 Ville saisie manuellement:', manualCity);
+                console.log('⏰ Lancement recherche dans 500ms...');
+                setTimeout(() => {
+                    console.log('🚀 Appel autoCheckNearbyHotels (saisie manuelle)');
+                    autoCheckNearbyHotels(manualCity);
+                }, 500);
+            }
+        });
+        
     } catch (error) {
         console.error('❌ Erreur initialisation Google Maps:', error);
     }
@@ -375,6 +441,12 @@ function triggerPlacesSearch(inputElement, searchQuery, type) {
                             
                             inputElement.value = cityName;
                             showToast(`✅ Ville validée: ${cityName}`, 'success');
+                            
+                            // ⭐ NOUVEAU : Déclenche la recherche d'hôtels après validation RateHawk
+                            console.log('🔗 URL RateHawk : Lancement recherche après validation de la ville');
+                            setTimeout(() => {
+                                autoCheckNearbyHotels(cityName);
+                            }, 500);
                         } else {
                             // Pour l'hôtel, utilise le nom
                             const hotelName = place.name || place.formatted_address;
@@ -513,6 +585,8 @@ let currentLightboxPhotos = [];
 let currentLightboxIndex = 0;
 
 function openMediaManager() {
+    console.log('🚀 openMediaManager appelée');
+    
     if (!currentTripId || !currentTripData) {
         showToast('Sélectionnez un voyage d\'abord', 'error');
         return;
@@ -521,36 +595,226 @@ function openMediaManager() {
     document.getElementById('media-trip-name').textContent = currentTripData.name || 'Voyage';
     toggleModal('media-manager-modal', true);
     
-    // Charge l'onglet général par défaut
-    switchMediaTab('general');
+    // ATTENDRE que la modale soit visible avant de configurer les listeners
+    setTimeout(() => {
+        console.log('⏰ Configuration des listeners après timeout');
+        
+        // Configure les event listeners pour les onglets
+        const tabColsBtn = document.getElementById('tab-cols-btn');
+        const tabRoutesBtn = document.getElementById('tab-routes-btn');
+        
+        console.log('🔧 Configuration onglets Media:', {
+            tabColsBtn: !!tabColsBtn,
+            tabRoutesBtn: !!tabRoutesBtn
+        });
+    
+        if (tabColsBtn) {
+            tabColsBtn.addEventListener('click', (e) => {
+                console.log('👆 Clic sur Cols');
+                e.preventDefault();
+                e.stopPropagation();
+                switchMediaTab('cols');
+            });
+            console.log('✅ Listener Cols attaché');
+        }
+        if (tabRoutesBtn) {
+            tabRoutesBtn.addEventListener('click', (e) => {
+                console.log('👆 Clic sur Routes');
+                e.preventDefault();
+                e.stopPropagation();
+                switchMediaTab('routes');
+            });
+            console.log('✅ Listener Routes attaché');
+        }
+        
+        // Configure les boutons d'upload pour Cols
+    const uploadGeneralBtn = document.getElementById('upload-general-btn');
+    const browseLibraryBtn = document.getElementById('browse-library-btn');
+    
+    if (uploadGeneralBtn) {
+        uploadGeneralBtn.onclick = () => document.getElementById('upload-general-input')?.click();
+    }
+    if (browseLibraryBtn) {
+        browseLibraryBtn.onclick = () => showToast('Fonctionnalité de bibliothèque complète en développement', 'info');
+    }
+    
+    // Configure les boutons d'upload pour Routes
+    const uploadRoutesBtn = document.getElementById('upload-routes-btn');
+    const browseRoutesLibraryBtn = document.getElementById('browse-routes-library-btn');
+    
+    if (uploadRoutesBtn) {
+        uploadRoutesBtn.onclick = () => document.getElementById('upload-routes-input')?.click();
+    }
+    if (browseRoutesLibraryBtn) {
+        browseRoutesLibraryBtn.onclick = () => showToast('Fonctionnalité de bibliothèque complète en développement', 'info');
+    }
+    
+    // Configure les champs de recherche
+    const searchCityInput = document.getElementById('search-city-input');
+    const searchRoutesInput = document.getElementById('search-routes-input');
+    
+    if (searchCityInput) {
+        searchCityInput.oninput = (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filterGeneralPhotos(searchTerm);
+        };
+    }
+    
+    if (searchRoutesInput) {
+        searchRoutesInput.oninput = (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filterRoutesPhotos(searchTerm);
+        };
+    }
+        
+        // Charge l'onglet Cols par défaut
+        switchMediaTab('cols');
+    }, 100); // Attendre 100ms que la modale soit affichée
 }
 
 function switchMediaTab(tabName) {
-    const tabGeneralBtn = document.getElementById('tab-general-btn');
-    const tabHotelsBtn = document.getElementById('tab-hotels-btn');
-    const tabGeneralContent = document.getElementById('tab-general-content');
-    const tabHotelsContent = document.getElementById('tab-hotels-content');
+    console.log('🔄 switchMediaTab appelé avec:', tabName);
     
-    if (tabName === 'general') {
-        tabGeneralBtn?.classList.add('border-purple-600', 'text-gray-900');
-        tabGeneralBtn?.classList.remove('border-transparent', 'text-gray-600');
-        tabHotelsBtn?.classList.remove('border-purple-600', 'text-gray-900');
-        tabHotelsBtn?.classList.add('border-transparent', 'text-gray-600');
+    const tabColsBtn = document.getElementById('tab-cols-btn');
+    const tabRoutesBtn = document.getElementById('tab-routes-btn');
+    const tabColsContent = document.getElementById('tab-cols-content');
+    const tabRoutesContent = document.getElementById('tab-routes-content');
+    
+    console.log('📋 Éléments trouvés:', {
+        buttons: { cols: !!tabColsBtn, routes: !!tabRoutesBtn },
+        contents: { cols: !!tabColsContent, routes: !!tabRoutesContent }
+    });
+    
+    // Reset tous les onglets
+    tabColsBtn?.classList.remove('border-blue-600', 'border-green-600', 'text-gray-900');
+    tabColsBtn?.classList.add('border-transparent', 'text-gray-600');
+    tabRoutesBtn?.classList.remove('border-blue-600', 'border-green-600', 'text-gray-900');
+    tabRoutesBtn?.classList.add('border-transparent', 'text-gray-600');
+    
+    // Cache tous les contenus
+    tabColsContent?.classList.add('hidden');
+    tabRoutesContent?.classList.add('hidden');
+    
+    // Active l'onglet sélectionné
+    if (tabName === 'cols') {
+        tabColsBtn?.classList.add('border-blue-600', 'text-gray-900');
+        tabColsBtn?.classList.remove('border-transparent', 'text-gray-600');
+        tabColsContent?.classList.remove('hidden');
+        loadGeneralPhotos(); // Les cols utilisent loadGeneralPhotos
+    } else if (tabName === 'routes') {
+        tabRoutesBtn?.classList.add('border-green-600', 'text-gray-900');
+        tabRoutesBtn?.classList.remove('border-transparent', 'text-gray-600');
+        tabRoutesContent?.classList.remove('hidden');
+        loadRoutesPhotos(); // Nouvelle fonction pour les routes
+    }
+}
+
+async function loadRoutesPhotos(filterTag = null) {
+    if (typeof firebase === 'undefined' || !firebase.firestore) {
+        showToast('Firebase non disponible', 'error');
+        return;
+    }
+    
+    const gridContainer = document.getElementById('routes-photos-grid');
+    const noPhotosMessage = document.getElementById('no-routes-photos');
+    
+    if (!gridContainer) return;
+    
+    gridContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">Chargement...</p>';
+    
+    try {
+        const db = firebase.firestore();
         
-        tabGeneralContent?.classList.remove('hidden');
-        tabHotelsContent?.classList.add('hidden');
+        let mediaQuery = db.collection(`artifacts/${APP_ID}/users/${USER_ID}/media`)
+            .where('type', '==', 'route')
+            .where('assignedTrips', 'array-contains', currentTripId);
         
-        loadGeneralPhotos();
-    } else {
-        tabHotelsBtn?.classList.add('border-purple-600', 'text-gray-900');
-        tabHotelsBtn?.classList.remove('border-transparent', 'text-gray-600');
-        tabGeneralBtn?.classList.remove('border-purple-600', 'text-gray-900');
-        tabGeneralBtn?.classList.add('border-transparent', 'text-gray-600');
+        const snapshot = await mediaQuery.get();
         
-        tabHotelsContent?.classList.remove('hidden');
-        tabGeneralContent?.classList.add('hidden');
+        if (snapshot.empty) {
+            gridContainer.innerHTML = '';
+            noPhotosMessage?.classList.remove('hidden');
+            return;
+        }
         
-        loadHotelPhotos();
+        noPhotosMessage?.classList.add('hidden');
+        gridContainer.innerHTML = '';
+        let allRoutesPhotos = [];
+        
+        snapshot.forEach(doc => {
+            const photo = { id: doc.id, ...doc.data() };
+            if (filterTag && !photo.tags?.includes(filterTag)) {
+                return;
+            }
+            allRoutesPhotos.push(photo);
+        });
+        
+        if (allRoutesPhotos.length === 0) {
+            gridContainer.innerHTML = '';
+            noPhotosMessage?.classList.remove('hidden');
+            return;
+        }
+        
+        allRoutesPhotos.sort((a, b) => {
+            const dateA = a.uploadedAt?.toMillis() || 0;
+            const dateB = b.uploadedAt?.toMillis() || 0;
+            return dateB - dateA;
+        });
+        
+        allRoutesPhotos.forEach(photo => {
+            const photoCard = document.createElement('div');
+            photoCard.className = 'relative group bg-gray-100 rounded-lg overflow-hidden aspect-square';
+            photoCard.innerHTML = `
+                <img src="${photo.downloadURL}" 
+                     alt="${photo.fileName}" 
+                     class="w-full h-full object-cover">
+                
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
+                    <div class="flex flex-wrap gap-1">
+                        ${(photo.tags || []).map(tag => `
+                            <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
+                                ${tag}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <div class="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button class="download-photo-btn bg-blue-600 hover:bg-blue-700 text-white w-8 h-8 rounded-full flex items-center justify-center"
+                            data-url="${photo.downloadURL}"
+                            data-filename="${photo.fileName}"
+                            title="Télécharger">
+                        <i class="fas fa-download text-xs"></i>
+                    </button>
+                    <button class="delete-photo-btn bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full flex items-center justify-center"
+                            data-id="${photo.id}"
+                            data-path="${photo.storagePath}"
+                            title="Supprimer">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+            `;
+            
+            gridContainer.appendChild(photoCard);
+        });
+        
+        document.querySelectorAll('.download-photo-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                downloadPhoto(btn.dataset.url, btn.dataset.filename);
+            });
+        });
+        
+        document.querySelectorAll('.delete-photo-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deletePhoto(btn.dataset.id, btn.dataset.path, 'routes');
+            });
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement photos routes:', error);
+        gridContainer.innerHTML = '<p class="col-span-full text-center text-red-500">Erreur de chargement</p>';
     }
 }
 
@@ -663,164 +927,101 @@ async function loadGeneralPhotos(filterTag = null) {
     }
 }
 
-async function loadHotelPhotos(filterHotelName = null) {
-    if (typeof firebase === 'undefined' || !firebase.firestore) {
-        showToast('Firebase non disponible', 'error');
+
+function filterRoutesPhotos(searchTerm) {
+    const gridContainer = document.getElementById('routes-photos-grid');
+    const noPhotosMessage = document.getElementById('no-routes-photos');
+    
+    if (!gridContainer) return;
+    
+    if (!searchTerm || searchTerm.trim() === '') {
+        loadRoutesPhotos();
         return;
     }
     
-    const listContainer = document.getElementById('hotels-photos-list');
-    const noPhotosMessage = document.getElementById('no-hotel-photos');
+    // On recharge pour filtrer - alternative: garder allRoutesPhotos en mémoire
+    loadRoutesPhotos();
+}
+
+function filterGeneralPhotos(searchTerm) {
+    if (!allGeneralPhotos || allGeneralPhotos.length === 0) return;
     
-    if (!listContainer) return;
+    const gridContainer = document.getElementById('general-photos-grid');
+    const noPhotosMessage = document.getElementById('no-general-photos');
     
-    listContainer.innerHTML = '<p class="text-center text-gray-500">Chargement...</p>';
+    if (!gridContainer) return;
     
-    try {
-        const data = await fetchAPI(`/admin/api/trips/${currentTripId}/days`);
-        
-        if (!data.days || data.days.length === 0) {
-            listContainer.innerHTML = '';
-            noPhotosMessage?.classList.remove('hidden');
-            return;
-        }
-        
-        const hotelNamesInTrip = new Set();
-        const daysByHotelName = {};
-        
-        data.days.forEach(day => {
-            const hotelName = day.hotelName;
-            if (hotelName) {
-                hotelNamesInTrip.add(hotelName);
-                if (!daysByHotelName[hotelName]) {
-                    daysByHotelName[hotelName] = [];
-                }
-                daysByHotelName[hotelName].push(day);
-            }
-        });
-        
-        if (hotelNamesInTrip.size === 0) {
-            listContainer.innerHTML = '';
-            noPhotosMessage?.classList.remove('hidden');
-            return;
-        }
-        
-        const db = firebase.firestore();
-        const mediaQuery = db.collection(`artifacts/${APP_ID}/users/${USER_ID}/media`)
-            .where('type', '==', 'hotel');
-        
-        const snapshot = await mediaQuery.get();
-        
-        if (snapshot.empty) {
-            listContainer.innerHTML = '';
-            noPhotosMessage?.classList.remove('hidden');
-            return;
-        }
-        
-        noPhotosMessage?.classList.add('hidden');
-        listContainer.innerHTML = '';
-        
-        const allPhotos = [];
-        snapshot.forEach(doc => {
-            const photo = { id: doc.id, ...doc.data() };
-            allPhotos.push(photo);
-        });
-        
-        allPhotos.sort((a, b) => {
-            const dateA = a.uploadedAt?.toMillis() || 0;
-            const dateB = b.uploadedAt?.toMillis() || 0;
-            return dateB - dateA;
-        });
-        
-        const photosByHotelName = {};
-        
-        allPhotos.forEach(photo => {
-            const hotelName = photo.hotelName;
-            if (!hotelNamesInTrip.has(hotelName)) return;
-            if (filterHotelName && !hotelName.toLowerCase().includes(filterHotelName.toLowerCase())) return;
+    if (!searchTerm || searchTerm.trim() === '') {
+        // Réaffiche toutes les photos
+        loadGeneralPhotos();
+        return;
+    }
+    
+    // Filtre les photos par tags
+    const filtered = allGeneralPhotos.filter(photo => {
+        const tags = photo.tags || [];
+        return tags.some(tag => tag.toLowerCase().includes(searchTerm));
+    });
+    
+    if (filtered.length === 0) {
+        gridContainer.innerHTML = '';
+        noPhotosMessage?.classList.remove('hidden');
+        return;
+    }
+    
+    noPhotosMessage?.classList.add('hidden');
+    gridContainer.innerHTML = '';
+    
+    filtered.forEach(photo => {
+        const photoCard = document.createElement('div');
+        photoCard.className = 'relative group bg-gray-100 rounded-lg overflow-hidden aspect-square';
+        photoCard.innerHTML = `
+            <img src="${photo.downloadURL}" 
+                 alt="${photo.fileName}" 
+                 class="w-full h-full object-cover">
             
-            if (!photosByHotelName[hotelName]) {
-                photosByHotelName[hotelName] = [];
-            }
-            photosByHotelName[hotelName].push(photo);
-        });
-        
-        if (Object.keys(photosByHotelName).length === 0) {
-            listContainer.innerHTML = '';
-            noPhotosMessage?.classList.remove('hidden');
-            return;
-        }
-        
-        for (const [hotelName, photos] of Object.entries(photosByHotelName)) {
-            const hotelSection = document.createElement('div');
-            hotelSection.className = 'bg-gray-50 border border-gray-200 rounded-lg p-4';
-            
-            const daysWithThisHotel = daysByHotelName[hotelName] || [];
-            
-            hotelSection.innerHTML = `
-                <div class="mb-3">
-                    <h4 class="font-semibold text-lg text-gray-900">
-                        <i class="fas fa-hotel text-indigo-500 mr-2"></i>
-                        ${hotelName}
-                    </h4>
-                    <p class="text-sm text-gray-600">
-                        <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
-                        ${daysWithThisHotel.map(d => `${d.dayName}${d.city ? ' • ' + d.city : ''}`).join(' | ')}
-                    </p>
-                </div>
-                
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    ${photos.map(photo => `
-                        <div class="relative group bg-white rounded-lg overflow-hidden aspect-square border border-gray-200">
-                            <img src="${photo.downloadURL}" 
-                                 alt="${photo.fileName}" 
-                                 class="w-full h-full object-cover cursor-pointer"
-                                 data-hotel-name="${hotelName}">
-                            
-                            <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button class="download-photo-btn bg-blue-600 hover:bg-blue-700 text-white w-7 h-7 rounded-full flex items-center justify-center"
-                                        data-url="${photo.downloadURL}"
-                                        data-filename="${photo.fileName}"
-                                        title="Télécharger">
-                                    <i class="fas fa-download text-xs"></i>
-                                </button>
-                                <button class="delete-photo-btn bg-red-600 hover:bg-red-700 text-white w-7 h-7 rounded-full flex items-center justify-center"
-                                        data-id="${photo.id}"
-                                        data-path="${photo.storagePath}"
-                                        title="Supprimer">
-                                    <i class="fas fa-trash text-xs"></i>
-                                </button>
-                            </div>
-                        </div>
+            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
+                <div class="flex flex-wrap gap-1">
+                    ${(photo.tags || []).map(tag => `
+                        <span class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                            ${tag}
+                        </span>
                     `).join('')}
                 </div>
-                
-                <p class="text-xs text-gray-500 mt-3 text-right">
-                    ${photos.length} photo${photos.length > 1 ? 's' : ''}
-                </p>
-            `;
+            </div>
             
-            listContainer.appendChild(hotelSection);
-        }
+            <div class="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button class="download-photo-btn bg-blue-600 hover:bg-blue-700 text-white w-8 h-8 rounded-full flex items-center justify-center"
+                        data-url="${photo.downloadURL}"
+                        data-filename="${photo.fileName}"
+                        title="Télécharger">
+                    <i class="fas fa-download text-xs"></i>
+                </button>
+                <button class="delete-photo-btn bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full flex items-center justify-center"
+                        data-id="${photo.id}"
+                        data-path="${photo.storagePath}"
+                        title="Supprimer">
+                    <i class="fas fa-trash text-xs"></i>
+                </button>
+            </div>
+        `;
         
-        document.querySelectorAll('.download-photo-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                downloadPhoto(btn.dataset.url, btn.dataset.filename);
-            });
+        gridContainer.appendChild(photoCard);
+    });
+    
+    document.querySelectorAll('.download-photo-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            downloadPhoto(btn.dataset.url, btn.dataset.filename);
         });
-        
-        document.querySelectorAll('.delete-photo-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deletePhoto(btn.dataset.id, btn.dataset.path, 'hotel');
-            });
+    });
+    
+    document.querySelectorAll('.delete-photo-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deletePhoto(btn.dataset.id, btn.dataset.path, 'general');
         });
-        
-    } catch (error) {
-        console.error('Erreur chargement photos hôtels:', error);
-        listContainer.innerHTML = '<p class="text-center text-red-500">Erreur de chargement</p>';
-    }
+    });
 }
 
 async function downloadPhoto(url, filename) {
@@ -1189,6 +1390,27 @@ async function loadDaysForConstruction() {
         daysList.innerHTML = '';
         
         for (const day of days) {
+            // Charge les restaurants pour cette étape
+            let restaurantsHtml = '';
+            try {
+                const restaurantsData = await fetchAPI(`/admin/api/trips/${currentTripId}/days/${day.id}/restaurant-suggestions`);
+                if (restaurantsData.success && restaurantsData.suggestions && restaurantsData.suggestions.length > 0) {
+                    const restaurantBadges = restaurantsData.suggestions.map(sugg => `
+                        <span class="inline-flex items-center bg-orange-50 text-orange-700 px-2 py-0.5 rounded text-xs mr-1">
+                            🍴 ${sugg.restaurant?.name || 'Restaurant'}
+                            <button class="ml-1 text-orange-500 hover:text-orange-700" 
+                                    data-day-id="${day.id}" 
+                                    data-suggestion-id="${sugg.id}"
+                                    onclick="removeRestaurantSuggestion('${day.id}', '${sugg.id}')"
+                                    title="Retirer">×</button>
+                        </span>
+                    `).join('');
+                    restaurantsHtml = `<p class="text-gray-600 text-sm mt-1">${restaurantBadges}</p>`;
+                }
+            } catch (error) {
+                console.error('Erreur chargement restaurants pour le jour:', error);
+            }
+            
             const dayEl = document.createElement('div');
             dayEl.className = 'border border-gray-200 p-4 rounded-lg flex justify-between items-start';
             
@@ -1211,8 +1433,17 @@ async function loadDaysForConstruction() {
                     <p class="text-gray-600 text-sm">
                         <i class="fas fa-map-signs text-gray-500 w-4 mr-1"></i> GPX: <strong>${day.gpxFile || 'N/A'}</strong>
                     </p>
+                    ${restaurantsHtml}
                 </div>
                 <div class="flex flex-col items-center gap-3 ml-4 shrink-0">
+                    ${day.hotel && day.hotel.photos && day.hotel.photos.length > 0 ? `
+                    <button data-hotel='${JSON.stringify(day.hotel).replace(/'/g, "&#39;")}' class="view-hotel-photos-btn text-purple-500 hover:text-purple-700 opacity-60 hover:opacity-100 transition-opacity" title="Voir les ${day.hotel.photos.length} photo(s)">
+                        <i class="fas fa-camera"></i>
+                    </button>
+                    ` : ''}
+                    <button data-id="${day.id}" class="add-restaurant-btn text-orange-500 hover:text-orange-700 opacity-60 hover:opacity-100 transition-opacity" title="Suggérer un restaurant">
+                        <i class="fas fa-utensils"></i>
+                    </button>
                     <button data-id="${day.id}" class="edit-day-btn text-blue-500 hover:text-blue-700 opacity-60 hover:opacity-100 transition-opacity" title="Modifier l'étape">
                         <i class="fas fa-pencil-alt"></i>
                     </button>
@@ -1228,6 +1459,17 @@ async function loadDaysForConstruction() {
         updateCostCalculator(data.costs || {}, data.sale_prices || {});
         
         // Event listeners
+        document.querySelectorAll('.view-hotel-photos-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const hotel = JSON.parse(btn.dataset.hotel.replace(/&#39;/g, "'"));
+                showHotelPhotosModal(hotel);
+            });
+        });
+        
+        document.querySelectorAll('.add-restaurant-btn').forEach(btn => {
+            btn.addEventListener('click', () => openRestaurantSelectorModal(btn.dataset.id));
+        });
+        
         document.querySelectorAll('.edit-day-btn').forEach(btn => {
             btn.addEventListener('click', () => openEditDayModal(btn.dataset.id));
         });
@@ -1260,6 +1502,124 @@ function updateCostCalculator(costs, salePrices) {
     document.getElementById('sale-solo').textContent = (salePrices.sale_solo || 0).toFixed(2) + '€';
     document.getElementById('margin-per-person').textContent = (salePrices.margin_per_person || 0).toFixed(2) + '€';
     document.getElementById('margin-percent').textContent = '(' + (salePrices.margin_percent || 0).toFixed(1) + '%)';
+}
+
+/**
+ * Variables globales pour la galerie photos
+ */
+let currentHotelPhotos = [];
+let currentPhotoIndex = 0;
+
+/**
+ * Affiche une galerie de photos de l'hôtel dans une belle modale
+ */
+function showHotelPhotosModal(hotel) {
+    if (!hotel || !hotel.photos || hotel.photos.length === 0) {
+        showToast('Aucune photo disponible pour cet hôtel', 'error');
+        return;
+    }
+    
+    currentHotelPhotos = hotel.photos;
+    currentPhotoIndex = 0;
+    
+    // Met à jour le titre
+    const hotelName = hotel.name || 'Hôtel';
+    document.getElementById('hotel-photos-modal-title').textContent = `${hotelName} (${currentHotelPhotos.length} photo${currentHotelPhotos.length > 1 ? 's' : ''})`;
+    
+    // Affiche la première photo
+    updateHotelPhotoDisplay();
+    
+    // Crée les miniatures
+    const thumbnailsContainer = document.getElementById('hotel-photos-thumbnails');
+    thumbnailsContainer.innerHTML = '';
+    
+    currentHotelPhotos.forEach((photoUrl, index) => {
+        const thumb = document.createElement('div');
+        thumb.className = `cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${index === 0 ? 'border-purple-500' : 'border-transparent hover:border-purple-300'}`;
+        thumb.style.width = '80px';
+        thumb.style.height = '60px';
+        thumb.innerHTML = `<img src="${photoUrl}" alt="Photo ${index + 1}" class="w-full h-full object-cover">`;
+        thumb.onclick = () => {
+            currentPhotoIndex = index;
+            updateHotelPhotoDisplay();
+            updateThumbnailsSelection();
+        };
+        thumbnailsContainer.appendChild(thumb);
+    });
+    
+    // Affiche la modale
+    document.getElementById('hotel-photos-modal').classList.remove('hidden');
+    
+    // Event listeners pour navigation et fermeture
+    setupHotelPhotosModalListeners();
+}
+
+/**
+ * Met à jour l'affichage de la photo principale
+ */
+function updateHotelPhotoDisplay() {
+    const mainImg = document.getElementById('hotel-photo-main');
+    const counter = document.getElementById('hotel-photo-counter');
+    
+    mainImg.src = currentHotelPhotos[currentPhotoIndex];
+    counter.textContent = `${currentPhotoIndex + 1} / ${currentHotelPhotos.length}`;
+    
+    updateThumbnailsSelection();
+}
+
+/**
+ * Met à jour la sélection des miniatures
+ */
+function updateThumbnailsSelection() {
+    const thumbnails = document.getElementById('hotel-photos-thumbnails').children;
+    Array.from(thumbnails).forEach((thumb, index) => {
+        if (index === currentPhotoIndex) {
+            thumb.classList.remove('border-transparent');
+            thumb.classList.add('border-purple-500');
+        } else {
+            thumb.classList.remove('border-purple-500');
+            thumb.classList.add('border-transparent');
+        }
+    });
+}
+
+/**
+ * Configure les event listeners pour la modale photos
+ */
+function setupHotelPhotosModalListeners() {
+    // Fermeture
+    document.getElementById('close-hotel-photos-btn').onclick = () => {
+        document.getElementById('hotel-photos-modal').classList.add('hidden');
+    };
+    
+    // Navigation précédent
+    document.getElementById('hotel-photo-prev').onclick = () => {
+        currentPhotoIndex = (currentPhotoIndex - 1 + currentHotelPhotos.length) % currentHotelPhotos.length;
+        updateHotelPhotoDisplay();
+    };
+    
+    // Navigation suivant
+    document.getElementById('hotel-photo-next').onclick = () => {
+        currentPhotoIndex = (currentPhotoIndex + 1) % currentHotelPhotos.length;
+        updateHotelPhotoDisplay();
+    };
+    
+    // Navigation avec clavier
+    const handleKeyPress = (e) => {
+        if (document.getElementById('hotel-photos-modal').classList.contains('hidden')) return;
+        
+        if (e.key === 'ArrowLeft') {
+            document.getElementById('hotel-photo-prev').click();
+        } else if (e.key === 'ArrowRight') {
+            document.getElementById('hotel-photo-next').click();
+        } else if (e.key === 'Escape') {
+            document.getElementById('close-hotel-photos-btn').click();
+        }
+    };
+    
+    // Retire l'ancien listener s'il existe et ajoute le nouveau
+    document.removeEventListener('keydown', handleKeyPress);
+    document.addEventListener('keydown', handleKeyPress);
 }
 
 function backToGrid() {
@@ -1549,6 +1909,688 @@ async function handleManualRequestSubmit(e) {
 }
 
 // ============================================
+// GESTION RESTAURANTS
+// ============================================
+
+let currentDayIdForRestaurant = null;
+
+/**
+ * Ouvre la modale de sélection de restaurant pour une étape
+ */
+async function openRestaurantSelectorModal(dayId) {
+    if (!currentTripId || !dayId) {
+        showToast('Erreur : voyage ou étape non sélectionné', 'error');
+        return;
+    }
+    
+    currentDayIdForRestaurant = dayId;
+    
+    // Ouvre la modale
+    toggleModal('restaurant-selector-modal', true);
+    
+    // Charge la liste des restaurants
+    await loadRestaurantsForSelector();
+    
+    // Configure les event listeners
+    setupRestaurantSelectorListeners();
+}
+
+/**
+ * Charge les restaurants depuis l'API
+ */
+async function loadRestaurantsForSelector() {
+    const listContainer = document.getElementById('restaurant-selector-list');
+    const noRestaurantsMsg = document.getElementById('no-restaurants-selector');
+    
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '<p class="text-center text-gray-500 py-4">Chargement...</p>';
+    
+    try {
+        const data = await fetchAPI('/admin/api/restaurants');
+        
+        if (!data.success || !data.restaurants || data.restaurants.length === 0) {
+            listContainer.innerHTML = '';
+            noRestaurantsMsg?.classList.remove('hidden');
+            return;
+        }
+        
+        noRestaurantsMsg?.classList.add('hidden');
+        
+        // Affiche les restaurants
+        displayRestaurants(data.restaurants);
+        
+        // Peuple les filtres
+        populateRestaurantFilters(data.restaurants);
+        
+    } catch (error) {
+        console.error('Erreur chargement restaurants:', error);
+        listContainer.innerHTML = '<p class="text-center text-red-500 py-4">Erreur de chargement</p>';
+    }
+}
+
+/**
+ * Affiche la liste des restaurants
+ */
+function displayRestaurants(restaurants) {
+    const listContainer = document.getElementById('restaurant-selector-list');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+    
+    restaurants.forEach(restaurant => {
+        const restaurantCard = document.createElement('div');
+        restaurantCard.className = 'border border-gray-200 rounded-lg p-4 hover:bg-orange-50 hover:border-orange-300 transition-colors cursor-pointer';
+        restaurantCard.dataset.restaurantId = restaurant.id;
+        
+        restaurantCard.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <h4 class="font-semibold text-gray-900">${restaurant.name}</h4>
+                    <p class="text-sm text-gray-600 mt-1">
+                        <i class="fas fa-map-marker-alt mr-1 text-orange-500"></i>${restaurant.city || 'Ville non spécifiée'}
+                    </p>
+                    ${restaurant.cuisine ? `
+                        <p class="text-sm text-gray-500 mt-1">
+                            <i class="fas fa-utensils mr-1"></i>${restaurant.cuisine}
+                        </p>
+                    ` : ''}
+                    ${restaurant.address ? `
+                        <p class="text-xs text-gray-500 mt-1">${restaurant.address}</p>
+                    ` : ''}
+                </div>
+                <div class="ml-4">
+                    <button class="select-restaurant-btn bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm">
+                        <i class="fas fa-plus mr-1"></i>Ajouter
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        listContainer.appendChild(restaurantCard);
+    });
+    
+    // Ajoute les event listeners sur les boutons d'ajout
+    document.querySelectorAll('.select-restaurant-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const card = e.target.closest('[data-restaurant-id]');
+            const restaurantId = card.dataset.restaurantId;
+            await addRestaurantToDay(restaurantId);
+        });
+    });
+}
+
+/**
+ * Peuple les filtres de ville et cuisine
+ */
+function populateRestaurantFilters(restaurants) {
+    const cityFilter = document.getElementById('restaurant-city-filter');
+    const cuisineFilter = document.getElementById('restaurant-cuisine-filter');
+    
+    if (!cityFilter || !cuisineFilter) return;
+    
+    // Extrait les villes uniques
+    const cities = [...new Set(restaurants.map(r => r.city).filter(Boolean))].sort();
+    cityFilter.innerHTML = '<option value="">Toutes les villes</option>';
+    cities.forEach(city => {
+        const option = document.createElement('option');
+        option.value = city;
+        option.textContent = city;
+        cityFilter.appendChild(option);
+    });
+    
+    // Extrait les types de cuisine uniques
+    const cuisines = [...new Set(restaurants.map(r => r.cuisine).filter(Boolean))].sort();
+    cuisineFilter.innerHTML = '<option value="">Tous les types</option>';
+    cuisines.forEach(cuisine => {
+        const option = document.createElement('option');
+        option.value = cuisine;
+        option.textContent = cuisine;
+        cuisineFilter.appendChild(option);
+    });
+}
+
+/**
+ * Configure les event listeners pour la modale de sélection
+ */
+function setupRestaurantSelectorListeners() {
+    // Fermeture
+    document.getElementById('close-restaurant-selector-btn')?.addEventListener('click', () => {
+        toggleModal('restaurant-selector-modal', false);
+        currentDayIdForRestaurant = null;
+    });
+    
+    document.getElementById('cancel-restaurant-selector-btn')?.addEventListener('click', () => {
+        toggleModal('restaurant-selector-modal', false);
+        currentDayIdForRestaurant = null;
+    });
+    
+    // Recherche
+    const searchInput = document.getElementById('restaurant-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterRestaurantsInSelector);
+    }
+    
+    // Filtres
+    const cityFilter = document.getElementById('restaurant-city-filter');
+    const cuisineFilter = document.getElementById('restaurant-cuisine-filter');
+    
+    if (cityFilter) {
+        cityFilter.addEventListener('change', filterRestaurantsInSelector);
+    }
+    
+    if (cuisineFilter) {
+        cuisineFilter.addEventListener('change', filterRestaurantsInSelector);
+    }
+}
+
+/**
+ * Filtre les restaurants dans la modale
+ */
+async function filterRestaurantsInSelector() {
+    const searchTerm = document.getElementById('restaurant-search-input')?.value.toLowerCase() || '';
+    const selectedCity = document.getElementById('restaurant-city-filter')?.value || '';
+    const selectedCuisine = document.getElementById('restaurant-cuisine-filter')?.value || '';
+    
+    try {
+        const data = await fetchAPI('/admin/api/restaurants');
+        
+        if (!data.success || !data.restaurants) return;
+        
+        let filtered = data.restaurants.filter(restaurant => {
+            // Filtre par recherche
+            if (searchTerm && !restaurant.name.toLowerCase().includes(searchTerm)) {
+                return false;
+            }
+            
+            // Filtre par ville
+            if (selectedCity && restaurant.city !== selectedCity) {
+                return false;
+            }
+            
+            // Filtre par cuisine
+            if (selectedCuisine && restaurant.cuisine !== selectedCuisine) {
+                return false;
+            }
+            
+            return true;
+        });
+        
+        displayRestaurants(filtered);
+        
+    } catch (error) {
+        console.error('Erreur filtrage restaurants:', error);
+    }
+}
+
+/**
+ * Ajoute un restaurant à une étape
+ */
+async function addRestaurantToDay(restaurantId) {
+    if (!currentTripId || !currentDayIdForRestaurant || !restaurantId) {
+        showToast('Erreur : données manquantes', 'error');
+        return;
+    }
+    
+    try {
+        const data = await fetchAPI(`/admin/api/trips/${currentTripId}/days/${currentDayIdForRestaurant}/restaurant-suggestions`, {
+            method: 'POST',
+            body: JSON.stringify({ restaurantId })
+        });
+        
+        if (data.success) {
+            showToast('Restaurant ajouté à l\'étape !', 'success');
+            toggleModal('restaurant-selector-modal', false);
+            currentDayIdForRestaurant = null;
+            // Recharge les étapes pour afficher le changement
+            await loadDaysForConstruction();
+        }
+    } catch (error) {
+        console.error('Erreur ajout restaurant:', error);
+        showToast(error.message || 'Erreur lors de l\'ajout du restaurant', 'error');
+    }
+}
+
+/**
+ * Retire une suggestion de restaurant d'une étape
+ */
+async function removeRestaurantSuggestion(dayId, suggestionId) {
+    if (!currentTripId || !dayId || !suggestionId) {
+        showToast('Erreur : données manquantes', 'error');
+        return;
+    }
+    
+    if (!confirm('Retirer ce restaurant de l\'étape ?')) {
+        return;
+    }
+    
+    try {
+        const data = await fetchAPI(`/admin/api/trips/${currentTripId}/days/${dayId}/restaurant-suggestions/${suggestionId}`, {
+            method: 'DELETE'
+        });
+        
+        if (data.success) {
+            showToast('Restaurant retiré', 'success');
+            // Recharge les étapes pour afficher le changement
+            await loadDaysForConstruction();
+        }
+    } catch (error) {
+        console.error('Erreur suppression restaurant:', error);
+        showToast(error.message || 'Erreur lors de la suppression', 'error');
+    }
+}
+
+// ============================================
+// RECHERCHE AUTOMATIQUE D'HÔTELS À PROXIMITÉ
+// ============================================
+
+/**
+ * Récupère tous les hôtels de l'utilisateur depuis tous les voyages
+ */
+async function getAllUserHotels() {
+    try {
+        const data = await fetchAPI('/admin/api/trips');
+        if (!data.trips || data.trips.length === 0) return [];
+        
+        const hotels = [];
+        for (const trip of data.trips) {
+            try {
+                const daysData = await fetchAPI(`/admin/api/trips/${trip.id}/days`);
+                if (daysData.days && daysData.days.length > 0) {
+                    daysData.days.forEach(day => {
+                        if (day.city && day.hotelName) {
+                            hotels.push({ ...day, tripId: trip.id, tripName: trip.name });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error(`Erreur chargement étapes voyage ${trip.id}:`, error);
+            }
+        }
+        return hotels;
+    } catch (error) {
+        console.error('Erreur récupération hôtels:', error);
+        return [];
+    }
+}
+
+/**
+ * Géolocalise une ville avec Google Maps Geocoding
+ */
+function geocodeCity(cityName) {
+    return new Promise((resolve, reject) => {
+        if (typeof google === 'undefined' || !google.maps) {
+            reject(new Error('Google Maps non chargé'));
+            return;
+        }
+        
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ 'address': cityName }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const location = results[0].geometry.location;
+                resolve({
+                    lat: location.lat(),
+                    lng: location.lng(),
+                    formattedAddress: results[0].formatted_address
+                });
+            } else {
+                reject(new Error('Ville non trouvée'));
+            }
+        });
+    });
+}
+
+/**
+ * Calcule la distance entre deux points GPS (formule de Haversine)
+ */
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+/**
+ * Recherche automatique d'hôtels à proximité après validation d'une ville
+ */
+async function autoCheckNearbyHotels(cityName) {
+    console.log('🔍 autoCheckNearbyHotels appelée avec ville:', cityName);
+    
+    if (!cityName || cityName.trim() === '') {
+        console.log('❌ Ville vide, abandon');
+        return;
+    }
+    
+    // Évite de refaire la même recherche
+    if (lastSearchedCity === cityName && nearbyHotelsCache) {
+        console.log('📦 Utilisation du cache pour', cityName);
+        displayNearbyBadge(nearbyHotelsCache);
+        return;
+    }
+    
+    try {
+        // Récupère le nom de l'hôtel actuellement saisi pour l'exclure
+        const currentHotelName = document.getElementById('day-hotel-name')?.value.trim().toLowerCase() || '';
+        console.log('🏨 Hôtel actuel à exclure:', currentHotelName || '(aucun)');
+        
+        // Géolocalise la ville recherchée
+        console.log('📍 Géolocalisation de', cityName);
+        const searchLocation = await geocodeCity(cityName);
+        console.log('✅ Position:', searchLocation.lat, searchLocation.lng);
+        
+        // Récupère tous les hôtels de l'utilisateur
+        console.log('📚 Récupération de tous les hôtels...');
+        const allHotels = await getAllUserHotels();
+        console.log(`✅ ${allHotels.length} hôtel(s) total dans la base`);
+        
+        if (allHotels.length === 0) {
+            console.log('ℹ️ Aucun hôtel dans la base');
+            lastSearchedCity = cityName;
+            nearbyHotelsCache = [];
+            removeNearbyBadge();
+            return;
+        }
+        
+        // Calcule les distances et filtre à 20km
+        console.log('📏 Calcul des distances...');
+        const hotelsWithDistance = [];
+        let excludedCount = 0;
+        let tooFarCount = 0;
+        
+        for (const hotel of allHotels) {
+            // ⭐ NOUVEAU : Exclut le même hôtel (comparaison par nom)
+            const hotelNameLower = hotel.hotelName.trim().toLowerCase();
+            if (currentHotelName && hotelNameLower === currentHotelName) {
+                console.log(`⏭️ Exclusion du même hôtel: ${hotel.hotelName} (${hotel.city})`);
+                excludedCount++;
+                continue; // Skip le même hôtel
+            }
+            
+            try {
+                const hotelLocation = await geocodeCity(hotel.city);
+                const distance = calculateDistance(
+                    searchLocation.lat,
+                    searchLocation.lng,
+                    hotelLocation.lat,
+                    hotelLocation.lng
+                );
+                
+                console.log(`  📍 ${hotel.hotelName} (${hotel.city}): ${distance.toFixed(1)} km`);
+                
+                if (!isNaN(distance) && distance >= 0 && distance <= 20) {
+                    console.log(`    ✅ À proximité!`);
+                    hotelsWithDistance.push({ ...hotel, distance: distance });
+                } else if (!isNaN(distance)) {
+                    console.log(`    ❌ Trop loin (> 20km)`);
+                    tooFarCount++;
+                }
+            } catch (error) {
+                // Impossible de géolocaliser cette ville, on ignore
+                console.log(`    ⚠️ Impossible de géolocaliser ${hotel.city}`);
+            }
+        }
+        
+        console.log(`📊 Résumé: ${hotelsWithDistance.length} à proximité, ${excludedCount} exclu(s), ${tooFarCount} trop loin`);
+        
+        // Trie par distance
+        hotelsWithDistance.sort((a, b) => a.distance - b.distance);
+        
+        // Stocke en cache
+        lastSearchedCity = cityName;
+        nearbyHotelsCache = hotelsWithDistance;
+        
+        // Affiche le résultat
+        if (hotelsWithDistance.length > 0) {
+            console.log(`✅ ${hotelsWithDistance.length} hôtel(s) différent(s) trouvé(s)`);
+            displayNearbyBadge(hotelsWithDistance);
+        } else {
+            console.log('ℹ️ Aucun autre hôtel à proximité');
+            // ⭐ NOUVEAU : Affiche un badge de confirmation au lieu du toast
+            displayNoNearbyBadge(excludedCount > 0);
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur recherche automatique:', error);
+        removeNearbyBadge();
+    }
+}
+
+/**
+ * Affiche un badge cliquable avec le nombre d'hôtels trouvés
+ */
+function displayNearbyBadge(hotels) {
+    const cityInput = document.getElementById('day-city');
+    if (!cityInput) return;
+    
+    // Retire l'ancien badge s'il existe
+    removeNearbyBadge();
+    
+    // Crée le badge
+    const badge = document.createElement('div');
+    badge.id = 'nearby-hotels-badge';
+    badge.className = 'mt-2 inline-flex items-center px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100 cursor-pointer transition-colors';
+    badge.innerHTML = `
+        <i class="fas fa-hotel mr-2"></i>
+        <span class="font-medium">${hotels.length} hôtel${hotels.length > 1 ? 's' : ''} à proximité</span>
+        <i class="fas fa-chevron-right ml-2 text-sm"></i>
+    `;
+    
+    // Ajoute le click pour ouvrir la modale avec les résultats
+    badge.addEventListener('click', () => {
+        openNearbyModalWithResults(hotels);
+    });
+    
+    // Insère après le champ ville
+    cityInput.parentElement.appendChild(badge);
+}
+
+/**
+ * ⭐ NOUVEAU : Affiche un badge de confirmation quand aucun autre hôtel n'est trouvé
+ */
+function displayNoNearbyBadge(hadExclusions) {
+    const cityInput = document.getElementById('day-city');
+    if (!cityInput) return;
+    
+    // Retire l'ancien badge s'il existe
+    removeNearbyBadge();
+    
+    // Crée le badge de confirmation
+    const badge = document.createElement('div');
+    badge.id = 'nearby-hotels-badge';
+    badge.className = 'mt-2 inline-flex items-center px-3 py-2 bg-green-50 text-green-700 rounded-lg border border-green-200';
+    
+    const message = hadExclusions 
+        ? '✅ Aucun autre hôtel à proximité (< 20km)' 
+        : 'ℹ️ Aucun hôtel à proximité (< 20km)';
+    
+    badge.innerHTML = `
+        <i class="fas fa-check-circle mr-2"></i>
+        <span class="font-medium text-sm">${message}</span>
+    `;
+    
+    // Insère après le champ ville
+    cityInput.parentElement.appendChild(badge);
+    
+    console.log('✅ Badge "aucun hôtel" affiché');
+}
+
+/**
+ * Retire le badge de notification
+ */
+function removeNearbyBadge() {
+    const existingBadge = document.getElementById('nearby-hotels-badge');
+    if (existingBadge) {
+        existingBadge.remove();
+    }
+}
+
+/**
+ * Ouvre la modale avec les résultats pré-remplis
+ */
+function openNearbyModalWithResults(hotels) {
+    console.log('🔍 Ouverture modale avec', hotels.length, 'hôtels');
+    
+    const searchResults = document.getElementById('search-results');
+    const noResults = document.getElementById('no-results');
+    const resultsList = document.getElementById('results-list');
+    const searchLoader = document.getElementById('search-loader');
+    
+    if (!searchResults || !resultsList) {
+        console.error('❌ Éléments de la modale introuvables');
+        return;
+    }
+    
+    // Cache le loader et le message "aucun résultat"
+    if (searchLoader) searchLoader.classList.add('hidden');
+    if (noResults) noResults.classList.add('hidden');
+    
+    // Affiche les résultats
+    resultsList.innerHTML = '';
+    hotels.forEach(hotel => {
+        const resultEl = document.createElement('div');
+        resultEl.className = 'bg-gray-50 p-4 rounded-lg hover:bg-gray-100 cursor-pointer border border-gray-200 transition-colors';
+        resultEl.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <h5 class="font-semibold text-gray-900">${hotel.hotelName}</h5>
+                    <p class="text-sm text-gray-600">
+                        <i class="fas fa-map-marker-alt mr-1"></i>${hotel.city}
+                        <span class="ml-3 text-indigo-600 font-semibold">${hotel.distance.toFixed(1)} km</span>
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-suitcase mr-1"></i>Voyage: ${hotel.tripName}
+                    </p>
+                </div>
+                <button class="ml-4 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">
+                    <i class="fas fa-check mr-1"></i>Utiliser
+                </button>
+            </div>
+        `;
+        
+        resultEl.querySelector('button').addEventListener('click', () => useSelectedHotel(hotel));
+        resultsList.appendChild(resultEl);
+    });
+    
+    searchResults.classList.remove('hidden');
+    
+    // Ouvre la modale (toggleModal attend un ID string, pas un élément DOM)
+    toggleModal('nearby-hotels-modal', true);
+    console.log('✅ Modale ouverte');
+}
+
+/**
+ * Utilise un hôtel sélectionné pour pré-remplir le formulaire
+ */
+function useSelectedHotel(hotel) {
+    toggleModal(document.getElementById('nearby-hotels-modal'), false);
+    document.getElementById('day-city').value = hotel.city;
+    document.getElementById('day-hotel-name').value = hotel.hotelName;
+    document.getElementById('day-price-double').value = hotel.priceDouble;
+    document.getElementById('day-price-solo').value = hotel.priceSolo;
+    document.getElementById('day-hotel-link').value = hotel.hotelLink || '';
+    showToast(`✨ Hôtel sélectionné : ${hotel.hotelName} à ${hotel.city}`, "success");
+    
+    // Retire le badge après utilisation
+    removeNearbyBadge();
+}
+
+/**
+ * Recherche manuelle d'hôtels à proximité (via le bouton)
+ */
+async function performManualSearch() {
+    const cityInput = document.getElementById('search-nearby-city-input');
+    const searchLoader = document.getElementById('search-loader');
+    const searchResults = document.getElementById('search-results');
+    const noResults = document.getElementById('no-results');
+    const resultsList = document.getElementById('results-list');
+    const cityName = cityInput?.value.trim();
+    
+    if (!cityName) {
+        showToast("Veuillez entrer un nom de ville.", "error");
+        return;
+    }
+    
+    searchLoader.classList.remove('hidden');
+    searchResults.classList.add('hidden');
+    noResults.classList.add('hidden');
+    
+    try {
+        const searchLocation = await geocodeCity(cityName);
+        const allHotels = await getAllUserHotels();
+        
+        if (allHotels.length === 0) {
+            searchLoader.classList.add('hidden');
+            noResults.classList.remove('hidden');
+            return;
+        }
+        
+        const hotelsWithDistance = [];
+        for (const hotel of allHotels) {
+            try {
+                const hotelLocation = await geocodeCity(hotel.city);
+                const distance = calculateDistance(
+                    searchLocation.lat,
+                    searchLocation.lng,
+                    hotelLocation.lat,
+                    hotelLocation.lng
+                );
+                
+                if (!isNaN(distance) && distance >= 0 && distance <= 20) {
+                    hotelsWithDistance.push({ ...hotel, distance: distance });
+                }
+            } catch (error) {
+                console.log(`Impossible de géolocaliser ${hotel.city}`);
+            }
+        }
+        
+        searchLoader.classList.add('hidden');
+        
+        if (hotelsWithDistance.length === 0) {
+            noResults.classList.remove('hidden');
+        } else {
+            hotelsWithDistance.sort((a, b) => a.distance - b.distance);
+            
+            resultsList.innerHTML = '';
+            hotelsWithDistance.forEach(hotel => {
+                const resultEl = document.createElement('div');
+                resultEl.className = 'bg-gray-50 p-4 rounded-lg hover:bg-gray-100 cursor-pointer border border-gray-200 transition-colors';
+                resultEl.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h5 class="font-semibold text-gray-900">${hotel.hotelName}</h5>
+                            <p class="text-sm text-gray-600">
+                                <i class="fas fa-map-marker-alt mr-1"></i>${hotel.city}
+                                <span class="ml-3 text-indigo-600 font-semibold">${hotel.distance.toFixed(1)} km</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <i class="fas fa-suitcase mr-1"></i>Voyage: ${hotel.tripName}
+                            </p>
+                        </div>
+                        <button class="ml-4 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">
+                            <i class="fas fa-check mr-1"></i>Utiliser
+                        </button>
+                    </div>
+                `;
+                
+                resultEl.querySelector('button').addEventListener('click', () => useSelectedHotel(hotel));
+                resultsList.appendChild(resultEl);
+            });
+            
+            searchResults.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error("Erreur recherche:", error);
+        searchLoader.classList.add('hidden');
+        showToast("Ville introuvable. Vérifiez l'orthographe.", "error");
+    }
+}
+
+// ============================================
 // POLLING (NOTIFICATIONS)
 // ============================================
 
@@ -1592,11 +2634,21 @@ function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
     
-    if (!toast || !toastMessage) return;
+    console.log('🍞 showToast appelé:', { message, type, toastExists: !!toast, messageExists: !!toastMessage });
+    
+    if (!toast || !toastMessage) {
+        console.error('❌ Éléments toast introuvables dans le DOM !');
+        return;
+    }
     
     toastMessage.textContent = message;
-    toast.classList.remove('bg-green-500', 'bg-red-500', 'hidden', 'opacity-0');
-    toast.classList.add(type === 'success' ? 'bg-green-500' : 'bg-red-500', 'opacity-100');
+    toast.classList.remove('bg-green-500', 'bg-red-500', 'bg-blue-500', 'hidden', 'opacity-0');
+    
+    let bgColor = 'bg-green-500';
+    if (type === 'error') bgColor = 'bg-red-500';
+    else if (type === 'info') bgColor = 'bg-blue-500';
+    
+    toast.classList.add(bgColor, 'opacity-100');
     
     setTimeout(() => {
         toast.classList.remove('opacity-100');

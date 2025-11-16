@@ -179,18 +179,56 @@ class FirebaseService:
         try:
             days_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/trips/{trip_id}/days')
             days = days_ref.order_by('createdAt').stream()
-            
+
             result = []
             for day in days:
                 day_data = day.to_dict()
                 day_data['id'] = day.id
                 result.append(day_data)
-            
+
             return result
         except Exception as e:
             print(f"Erreur lors de la récupération des étapes: {e}")
             return []
-    
+
+    def get_trip_days_with_hotels(self, user_id: str, trip_id: str) -> List[Dict]:
+        """
+        Récupère les étapes d'un voyage avec les infos complètes des hôtels
+        depuis la banque d'hôtels (SOURCE UNIQUE)
+        """
+        try:
+            # Récupère les étapes
+            days = self.get_trip_days(user_id, trip_id)
+            
+            # Pour chaque étape, enrichit avec les données complètes de l'hôtel
+            for day in days:
+                hotel_id = day.get('hotelId')
+                if hotel_id:
+                    # Récupère les infos complètes depuis la banque
+                    hotel = self.get_hotel(user_id, hotel_id)
+                    if hotel:
+                        # Données complètes de l'hôtel
+                        day['hotel'] = hotel
+                        
+                        # Rétrocompatibilité : remplit les champs legacy
+                        # pour que l'ancien code continue de fonctionner
+                        day['hotelName'] = hotel.get('name', '')
+                        day['city'] = hotel.get('city', '')
+                        day['priceDouble'] = hotel.get('defaultPricing', {}).get('priceDouble', 0)
+                        day['priceSolo'] = hotel.get('defaultPricing', {}).get('priceSolo', 0)
+                    else:
+                        # Fallback si l'hôtel n'existe plus dans la banque
+                        print(f"⚠️ Hôtel {hotel_id} introuvable dans la banque pour l'étape {day.get('id')}")
+                        # Garde les valeurs existantes dans day si présentes
+                else:
+                    # Étape sans hotelId (ancien format ou erreur)
+                    print(f"⚠️ Étape {day.get('id')} sans hotelId")
+            
+            return days
+        except Exception as e:
+            print(f"Erreur lors de la récupération des étapes avec hôtels: {e}")
+            return []
+
     def get_day(self, user_id: str, trip_id: str, day_id: str) -> Optional[Dict]:
         """Récupère une étape spécifique"""
         try:
@@ -237,15 +275,20 @@ class FirebaseService:
     # GESTION DES MÉDIAS
     # ============================================
     
-    def get_user_media(self, user_id: str, media_type: Optional[str] = None) -> List[Dict]:
-        """Récupère tous les médias d'un utilisateur (collection globale)"""
+    def get_media(self, user_id: str, media_type: Optional[str] = None, tag: Optional[str] = None) -> List[Dict]:
+        """Récupère tous les médias de la banque avec filtres optionnels"""
         try:
             media_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/media')
             
+            # Filtre par type si fourni
             if media_type:
-                media = media_ref.where('type', '==', media_type).stream()
-            else:
-                media = media_ref.stream()
+                media_ref = media_ref.where('type', '==', media_type)
+            
+            # Filtre par tag si fourni
+            if tag:
+                media_ref = media_ref.where('tags', 'array_contains', tag)
+            
+            media = media_ref.order_by('uploadedAt', direction=firestore.Query.DESCENDING).stream()
             
             result = []
             for medium in media:
@@ -257,6 +300,23 @@ class FirebaseService:
         except Exception as e:
             print(f"Erreur lors de la récupération des médias: {e}")
             return []
+    
+    def get_user_media(self, user_id: str, media_type: Optional[str] = None) -> List[Dict]:
+        """Alias pour get_media - Récupère tous les médias d'un utilisateur"""
+        return self.get_media(user_id, media_type)
+    
+    def get_media_by_id(self, user_id: str, media_id: str) -> Optional[Dict]:
+        """Récupère un média spécifique par son ID"""
+        try:
+            doc = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/media').document(media_id).get()
+            if doc.exists:
+                media_data = doc.to_dict()
+                media_data['id'] = doc.id
+                return media_data
+            return None
+        except Exception as e:
+            print(f"Erreur lors de la récupération du média: {e}")
+            return None
     
     def get_trip_media(self, user_id: str, trip_id: str, media_type: Optional[str] = None) -> List[Dict]:
         """Récupère les médias assignés à un voyage"""
@@ -341,6 +401,44 @@ class FirebaseService:
             return True
         except Exception as e:
             print(f"Erreur lors de la suppression du média: {e}")
+            return False
+    
+    def assign_media_to_trip(self, user_id: str, media_id: str, trip_id: str) -> bool:
+        """Assigne un média à un voyage en l'ajoutant à assignedTrips"""
+        try:
+            media = self.get_media_by_id(user_id, media_id)
+            if not media:
+                return False
+            
+            assigned_trips = media.get('assignedTrips', [])
+            
+            # Ajoute le trip_id s'il n'est pas déjà présent
+            if trip_id not in assigned_trips:
+                assigned_trips.append(trip_id)
+                self.update_media(user_id, media_id, {'assignedTrips': assigned_trips})
+            
+            return True
+        except Exception as e:
+            print(f"Erreur lors de l'assignation du média: {e}")
+            return False
+    
+    def unassign_media_from_trip(self, user_id: str, media_id: str, trip_id: str) -> bool:
+        """Désassigne un média d'un voyage en le retirant de assignedTrips"""
+        try:
+            media = self.get_media_by_id(user_id, media_id)
+            if not media:
+                return False
+            
+            assigned_trips = media.get('assignedTrips', [])
+            
+            # Retire le trip_id s'il est présent
+            if trip_id in assigned_trips:
+                assigned_trips.remove(trip_id)
+                self.update_media(user_id, media_id, {'assignedTrips': assigned_trips})
+            
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la désassignation du média: {e}")
             return False
     
     # ============================================
@@ -1356,6 +1454,244 @@ class FirebaseService:
             print(f"Erreur lors de la décrémentation de l'utilisation: {e}")
             return False
     
+    # ============================================
+    # GESTION DES RESTAURANTS
+    # ============================================
+
+    def get_restaurants(self, user_id: str) -> List[Dict]:
+        """Récupère tous les restaurants de la banque"""
+        try:
+            restaurants_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants')
+            restaurants = restaurants_ref.order_by('name').stream()
+            
+            result = []
+            for restaurant in restaurants:
+                restaurant_data = restaurant.to_dict()
+                restaurant_data['id'] = restaurant.id
+                result.append(restaurant_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors de la récupération des restaurants: {e}")
+            return []
+
+    def get_restaurant(self, user_id: str, restaurant_id: str) -> Optional[Dict]:
+        """Récupère un restaurant spécifique"""
+        try:
+            doc = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants').document(restaurant_id).get()
+            if doc.exists:
+                restaurant_data = doc.to_dict()
+                restaurant_data['id'] = doc.id
+                return restaurant_data
+            return None
+        except Exception as e:
+            print(f"Erreur lors de la récupération du restaurant: {e}")
+            return None
+
+    def create_restaurant(self, user_id: str, restaurant_data: Dict) -> Optional[str]:
+        """Crée un nouveau restaurant dans la banque"""
+        try:
+            restaurant_doc = {
+                'name': restaurant_data.get('name'),
+                'city': restaurant_data.get('city'),
+                'address': restaurant_data.get('address', ''),
+                'googlePlaceId': restaurant_data.get('googlePlaceId', ''),
+                'cuisineType': restaurant_data.get('cuisineType', ''),
+                'contact': {
+                    'phone': restaurant_data.get('contact', {}).get('phone', ''),
+                    'website': restaurant_data.get('contact', {}).get('website', '')
+                },
+                'photos': restaurant_data.get('photos', []),
+                'ratings': {
+                    'averageRating': 0.0,
+                    'totalRatings': 0,
+                    'lastRatingAt': None
+                },
+                'usageStats': {
+                    'usedInTrips': [],
+                    'usedCount': 0,
+                    'lastUsed': None
+                },
+                'createdAt': firestore.SERVER_TIMESTAMP,
+                'createdBy': user_id,
+                'updatedAt': firestore.SERVER_TIMESTAMP
+            }
+            
+            doc_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants').add(restaurant_doc)
+            return doc_ref[1].id
+        except Exception as e:
+            print(f"Erreur lors de la création du restaurant: {e}")
+            return None
+
+    def update_restaurant(self, user_id: str, restaurant_id: str, data: Dict) -> bool:
+        """Met à jour un restaurant"""
+        try:
+            data['updatedAt'] = firestore.SERVER_TIMESTAMP
+            self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants').document(restaurant_id).update(data)
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour du restaurant: {e}")
+            return False
+
+    def delete_restaurant(self, user_id: str, restaurant_id: str) -> bool:
+        """Supprime un restaurant"""
+        try:
+            self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants').document(restaurant_id).delete()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la suppression du restaurant: {e}")
+            return False
+
+    def search_restaurants(self, user_id: str, query: str, city: Optional[str] = None) -> List[Dict]:
+        """Recherche des restaurants par nom ou ville"""
+        try:
+            restaurants = self.get_restaurants(user_id)
+            query_lower = query.lower()
+            
+            results = []
+            for restaurant in restaurants:
+                name_match = query_lower in restaurant.get('name', '').lower()
+                city_match = city is None or city.lower() in restaurant.get('city', '').lower()
+                
+                if name_match and city_match:
+                    results.append(restaurant)
+            
+            return results
+        except Exception as e:
+            print(f"Erreur lors de la recherche de restaurants: {e}")
+            return []
+
+    # ============================================
+    # GESTION DES SUGGESTIONS DE RESTAURANTS (PAR JOUR)
+    # ============================================
+
+    def get_day_restaurant_suggestions(self, user_id: str, trip_id: str, day_id: str) -> List[Dict]:
+        """Récupère toutes les suggestions de restaurants pour un jour"""
+        try:
+            suggestions_ref = self.db.collection(
+                f'artifacts/{self.app_id}/users/{user_id}/trips/{trip_id}/days/{day_id}/restaurantSuggestions'
+            )
+            suggestions = suggestions_ref.order_by('createdAt').stream()
+            
+            result = []
+            for suggestion in suggestions:
+                suggestion_data = suggestion.to_dict()
+                suggestion_data['id'] = suggestion.id
+                
+                # Enrichit avec les données complètes du restaurant
+                restaurant_id = suggestion_data.get('restaurantId')
+                if restaurant_id:
+                    restaurant = self.get_restaurant(user_id, restaurant_id)
+                    if restaurant:
+                        suggestion_data['restaurant'] = restaurant
+                
+                result.append(suggestion_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors de la récupération des suggestions: {e}")
+            return []
+
+    def add_restaurant_suggestion(self, user_id: str, trip_id: str, day_id: str, restaurant_id: str, day_date: str = None) -> Optional[str]:
+        """Ajoute une suggestion de restaurant à un jour"""
+        try:
+            # Vérifie que le restaurant existe
+            restaurant = self.get_restaurant(user_id, restaurant_id)
+            if not restaurant:
+                print(f"Restaurant {restaurant_id} non trouvé")
+                return None
+            
+            suggestion_data = {
+                'restaurantId': restaurant_id,
+                'dayDate': day_date,  # Date optionnelle pour le jour
+                'createdAt': firestore.SERVER_TIMESTAMP
+            }
+            
+            doc_ref = self.db.collection(
+                f'artifacts/{self.app_id}/users/{user_id}/trips/{trip_id}/days/{day_id}/restaurantSuggestions'
+            ).add(suggestion_data)
+            
+            # Incrémente les stats d'utilisation du restaurant
+            self.increment_restaurant_usage(user_id, restaurant_id, trip_id)
+            
+            return doc_ref[1].id
+        except Exception as e:
+            print(f"Erreur lors de l'ajout de la suggestion: {e}")
+            return None
+
+    def remove_restaurant_suggestion(self, user_id: str, trip_id: str, day_id: str, suggestion_id: str) -> bool:
+        """Retire une suggestion de restaurant"""
+        try:
+            # Récupère la suggestion pour obtenir le restaurant_id
+            doc = self.db.collection(
+                f'artifacts/{self.app_id}/users/{user_id}/trips/{trip_id}/days/{day_id}/restaurantSuggestions'
+            ).document(suggestion_id).get()
+            
+            if doc.exists:
+                suggestion_data = doc.to_dict()
+                restaurant_id = suggestion_data.get('restaurantId')
+                
+                # Supprime la suggestion
+                doc.reference.delete()
+                
+                # Décrémente les stats d'utilisation du restaurant
+                if restaurant_id:
+                    self.decrement_restaurant_usage(user_id, restaurant_id, trip_id)
+                
+                return True
+            return False
+        except Exception as e:
+            print(f"Erreur lors de la suppression de la suggestion: {e}")
+            return False
+
+    def increment_restaurant_usage(self, user_id: str, restaurant_id: str, trip_id: str) -> bool:
+        """Incrémente les statistiques d'utilisation d'un restaurant"""
+        try:
+            restaurant = self.get_restaurant(user_id, restaurant_id)
+            if not restaurant:
+                return False
+            
+            used_in_trips = restaurant.get('usageStats', {}).get('usedInTrips', [])
+            
+            # Ajoute le trip_id s'il n'est pas déjà présent
+            if trip_id not in used_in_trips:
+                used_in_trips.append(trip_id)
+            
+            self.update_restaurant(user_id, restaurant_id, {
+                'usageStats.usedInTrips': used_in_trips,
+                'usageStats.usedCount': len(used_in_trips),
+                'usageStats.lastUsed': firestore.SERVER_TIMESTAMP
+            })
+            
+            return True
+        except Exception as e:
+            print(f"Erreur lors de l'incrémentation de l'utilisation: {e}")
+            return False
+
+    def decrement_restaurant_usage(self, user_id: str, restaurant_id: str, trip_id: str) -> bool:
+        """Décrémente les statistiques d'utilisation d'un restaurant"""
+        try:
+            restaurant = self.get_restaurant(user_id, restaurant_id)
+            if not restaurant:
+                return False
+            
+            used_in_trips = restaurant.get('usageStats', {}).get('usedInTrips', [])
+            
+            # Retire le trip_id s'il est présent
+            if trip_id in used_in_trips:
+                used_in_trips.remove(trip_id)
+            
+            self.update_restaurant(user_id, restaurant_id, {
+                'usageStats.usedInTrips': used_in_trips,
+                'usageStats.usedCount': len(used_in_trips),
+                'usageStats.lastUsed': firestore.SERVER_TIMESTAMP if len(used_in_trips) > 0 else None
+            })
+            
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la décrémentation de l'utilisation: {e}")
+            return False
+
     # ============================================
     # GESTION DES REVIEWS/ÉVALUATIONS D'HÔTELS
     # ============================================

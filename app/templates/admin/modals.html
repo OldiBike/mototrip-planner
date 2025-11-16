@@ -1,6 +1,6 @@
-<!-- Modale pour Ajouter/Éditer une Étape -->
-<div id="add-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 overflow-y-auto">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95 my-8">
+<!-- Modale pour Ajouter/Éditer une Étape - VERSION 2 COLONNES -->
+<div id="add-day-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-5xl transform scale-95 max-h-[95vh] overflow-hidden flex flex-col">
         <div class="flex justify-between items-center mb-6">
             <h3 id="day-modal-title" class="text-2xl font-semibold">Ajouter une nouvelle étape</h3>
             <button type="button" id="search-nearby-hotels-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2" title="Rechercher des hôtels à proximité">
@@ -8,98 +8,118 @@
                 <span class="hidden sm:inline">Hôtels à proximité</span>
             </button>
         </div>
-        <form id="add-day-form">
+        <form id="add-day-form" class="flex-1 overflow-y-auto">
             <input type="hidden" id="editing-day-id">
-            <div class="space-y-4">
-                <div>
-                    <label for="day-name" class="block text-sm font-medium text-gray-700">Nom du Jour (ex: Jour 1, Jour 2C)</label>
-                    <input type="text" id="day-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
-                </div>
-                <div>
-                    <label for="day-city" class="block text-sm font-medium text-gray-700">Ville</label>
-                    <input type="text" 
-                           id="day-city" 
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
-                           placeholder="Ex: Epinal, France" 
-                           required>
-                    <p class="mt-1 text-xs text-gray-500">L'autocomplétion Google Maps validera la ville</p>
-                </div>
-                
-                <!-- Sélection Hôtel depuis la Banque -->
-                <div class="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-lg border border-purple-200">
-                    <label for="day-hotel-select" class="block text-sm font-medium text-gray-700 mb-2">
-                        🏨 Sélectionner depuis la banque d'hôtels
-                    </label>
-                    <select id="day-hotel-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 bg-white">
-                        <option value="">-- Choisir un hôtel existant --</option>
-                        <!-- Les hôtels seront chargés dynamiquement -->
-                    </select>
-                    <p class="mt-2 text-xs text-gray-600">
-                        ✨ Les prix seront automatiquement pré-remplis
-                    </p>
-                </div>
-
-                <div class="flex items-center justify-center text-gray-400 text-sm">
-                    <span class="px-3">OU</span>
-                </div>
-                
-                <div>
-                    <label for="day-hotel-name" class="block text-sm font-medium text-gray-700">Nom de l'hôtel (saisie manuelle)</label>
-                    <input type="text" id="day-hotel-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Logis Hôtel Atrium">
-                    <p class="mt-1 text-xs text-gray-500">Laissez vide si vous avez sélectionné depuis la banque</p>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="day-price-double" class="block text-sm font-medium text-gray-700">Prix Double (€)</label>
-                        <input type="number" id="day-price-double" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
-                    </div>
-                    <div>
-                        <label for="day-price-solo" class="block text-sm font-medium text-gray-700">Prix Solo (€)</label>
-                        <input type="number" id="day-price-solo" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
-                    </div>
-                </div>
-
-                <div>
-                    <label for="day-nights" class="block text-sm font-medium text-gray-700">Nombre de nuits <span class="text-xs text-gray-500">(optionnel)</span></label>
-                    <input type="number" id="day-nights" min="1" step="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="1">
-                    <p class="text-xs text-gray-500 mt-1">Indiquez si vous restez plusieurs nuits à cette étape. Le prix ne sera pas multiplié.</p>
-                </div>
-                
-                <div>
-                    <label for="day-gpx-file" class="block text-sm font-medium text-gray-700">Fichier GPX (ex: Jour 1)</label>
-                    <input type="text" id="day-gpx-file" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label for="day-hotel-link" class="block text-sm font-medium text-gray-700">URL Hôtel (RateHawk, etc.)</label>
-                    <div class="mt-1 flex rounded-md shadow-sm">
-                        <input type="url" id="day-hotel-link" class="block w-full flex-1 rounded-none rounded-l-md px-3 py-2 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
-                        <button type="button" id="open-hotel-link-btn" class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" title="Ouvrir le lien dans un nouvel onglet">
-                            <i class="fas fa-external-link-alt text-gray-500"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Option de téléchargement automatique des photos Google -->
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label class="flex items-start cursor-pointer">
-                        <input type="checkbox" 
-                               id="auto-fetch-google-photos" 
-                               checked 
-                               class="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                        <div class="flex-1">
-                            <span class="text-sm font-medium text-gray-900">
-                                📸 Télécharger automatiquement les photos Google
-                            </span>
-                            <p class="text-xs text-gray-600 mt-1">
-                                Récupère jusqu'à 5 photos de l'hôtel depuis Google Places (si disponibles et si l'hôtel n'a pas déjà de photos)
-                            </p>
-                        </div>
-                    </label>
+            
+            <!-- AUTO-REMPLISSAGE RATEHAWK (EN HAUT) -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200 mb-4">
+                <label for="day-hotel-link" class="block text-sm font-medium text-gray-700 mb-2">
+                    🚀 URL RateHawk (auto-remplissage)
+                </label>
+                <div class="flex rounded-md shadow-sm">
+                    <input type="url" 
+                           id="day-hotel-link" 
+                           class="block w-full flex-1 rounded-none rounded-l-md px-3 py-2 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="https://www.ratehawk.com/hotel/...">
+                    <button type="button" 
+                            id="open-hotel-link-btn" 
+                            class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100" 
+                            title="Ouvrir">
+                        <i class="fas fa-external-link-alt text-gray-500"></i>
+                    </button>
                 </div>
             </div>
-            <div class="flex justify-end gap-4 mt-8">
+            
+            <!-- GRILLE 2 COLONNES -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- COLONNE GAUCHE : Informations de base -->
+                <div class="space-y-4">
+                    <h4 class="font-semibold text-lg text-gray-700 border-b pb-2">📍 Informations de l'étape</h4>
+                    
+                    <div>
+                        <label for="day-name" class="block text-sm font-medium text-gray-700">Nom du Jour *</label>
+                        <input type="text" id="day-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Jour 1, Jour 2C" required>
+                    </div>
+                    
+                    <div>
+                        <label for="day-city" class="block text-sm font-medium text-gray-700">Ville *</label>
+                        <input type="text" 
+                               id="day-city" 
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                               placeholder="Ex: Epinal, France" 
+                               required>
+                        <p class="mt-1 text-xs text-gray-500">Autocomplétion Google Maps</p>
+                    </div>
+                    
+                    <div>
+                        <label for="day-hotel-name" class="block text-sm font-medium text-gray-700">Nom de l'hôtel *</label>
+                        <input type="text" id="day-hotel-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Logis Hôtel Atrium">
+                        <p class="mt-1 text-xs text-gray-500">Ou sélectionnez depuis la banque →</p>
+                    </div>
+                    
+                    <div>
+                        <label for="day-gpx-file" class="block text-sm font-medium text-gray-700">Fichier GPX</label>
+                        <input type="text" id="day-gpx-file" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Jour 1">
+                    </div>
+                </div>
+                
+                <!-- COLONNE DROITE : Prix et sélection -->
+                <div class="space-y-4">
+                    <h4 class="font-semibold text-lg text-gray-700 border-b pb-2">💰 Prix et Options</h4>
+                    
+                    <!-- Sélection Hôtel depuis la Banque -->
+                    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-lg border border-purple-200">
+                        <label for="day-hotel-select" class="block text-sm font-medium text-gray-700 mb-2">
+                            🏨 Sélectionner depuis la banque
+                        </label>
+                        <select id="day-hotel-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 bg-white">
+                            <option value="">-- Choisir un hôtel existant --</option>
+                        </select>
+                        <p class="mt-2 text-xs text-gray-600">
+                            ✨ Prix pré-remplis automatiquement
+                        </p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="day-price-double" class="block text-sm font-medium text-gray-700">Prix Double (€) *</label>
+                            <input type="number" id="day-price-double" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00" required>
+                        </div>
+                        <div>
+                            <label for="day-price-solo" class="block text-sm font-medium text-gray-700">Prix Solo (€)</label>
+                            <input type="number" id="day-price-solo" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="day-nights" class="block text-sm font-medium text-gray-700">Nombre de nuits</label>
+                        <input type="number" id="day-nights" min="1" step="1" value="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Si vous restez plusieurs nuits (prix non multiplié)</p>
+                    </div>
+                    
+                    <!-- Option Google Photos -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <label class="flex items-start cursor-pointer">
+                            <input type="checkbox" 
+                                   id="auto-fetch-google-photos" 
+                                   checked 
+                                   class="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <div class="flex-1">
+                                <span class="text-sm font-medium text-gray-900">
+                                    📸 Photos Google automatiques
+                                </span>
+                                <p class="text-xs text-gray-600 mt-1">
+                                    Récupère jusqu'à 5 photos depuis Google Places
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BOUTONS D'ACTION (pleine largeur en bas) -->
+            <div class="flex justify-end gap-4 mt-6 pt-6 border-t">
                 <button type="button" id="cancel-add-day-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
                 <button type="submit" id="save-day-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">Enregistrer l'étape</button>
             </div>
@@ -349,19 +369,19 @@
 
         <!-- Onglets -->
         <div class="flex border-b bg-gray-50">
-            <button id="tab-general-btn" class="flex-1 px-6 py-3 font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-purple-600 transition-colors">
-                <i class="fas fa-mountain mr-2"></i>Cols & Routes
+            <button id="tab-cols-btn" class="flex-1 px-6 py-3 font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-blue-600 transition-colors">
+                <i class="fas fa-mountain mr-2"></i>Cols
             </button>
-            <button id="tab-hotels-btn" class="flex-1 px-6 py-3 font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-transparent transition-colors">
-                <i class="fas fa-hotel mr-2"></i>Hôtels
+            <button id="tab-routes-btn" class="flex-1 px-6 py-3 font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-b-4 border-transparent transition-colors">
+                <i class="fas fa-road mr-2"></i>Routes
             </button>
         </div>
 
         <!-- Contenu dynamique des onglets -->
         <div class="flex-1 overflow-y-auto p-6">
             
-            <!-- ONGLET 1 : Cols & Routes -->
-            <div id="tab-general-content" class="space-y-4">
+            <!-- ONGLET 1 : Cols -->
+            <div id="tab-cols-content" class="space-y-4">
                 
                 <!-- Barre de recherche -->
                 <div class="flex gap-3">
@@ -477,47 +497,66 @@
                 </div>
             </div>
 
-            <!-- ONGLET 2 : Hôtels -->
-            <div id="tab-hotels-content" class="space-y-4 hidden">
+            <!-- ONGLET 2 : Routes -->
+            <div id="tab-routes-content" class="space-y-4 hidden">
                 
-                <!-- Barre de recherche hôtel -->
+                <!-- Barre de recherche -->
                 <div class="flex gap-3">
                     <div class="flex-1 relative">
                         <input type="text" 
-                               id="search-hotels-input" 
-                               placeholder="Rechercher un hôtel..."
-                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                               id="search-routes-input" 
+                               list="search-cities-datalist"
+                               placeholder="Ex: Route des Grandes Alpes, Stelvio..."
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
                         <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
                     </div>
                 </div>
 
-                <!-- Bouton upload -->
-                <div>
-                    <input type="file" id="upload-hotel-input" accept="image/*" multiple class="hidden">
-                    <button id="upload-hotel-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
-                        <i class="fas fa-hotel mr-2"></i>
-                        Ajouter photos d'hôtel
-                    </button>
+                <!-- Boutons -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <input type="file" id="upload-routes-input" accept="image/*" multiple class="hidden">
+                        <button id="upload-routes-btn" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 font-medium flex items-center justify-center gap-2">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            Ajouter des photos
+                        </button>
+                    </div>
+                    <div>
+                        <button id="browse-routes-library-btn" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
+                            <i class="fas fa-book mr-2"></i>
+                            Bibliothèque complète
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Liste des hôtels avec photos -->
-                <div id="hotels-photos-list" class="space-y-4 mt-6">
-                    <!-- Les hôtels seront injectés ici -->
+                <!-- Tags populaires -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-2">
+                        <i class="fas fa-tags mr-2"></i>Tags populaires :
+                    </p>
+                    <div id="popular-routes-tags-container" class="flex flex-wrap gap-2">
+                        <!-- Les tags seront injectés dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Galerie de photos -->
+                <div id="routes-photos-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
+                    <!-- Les photos seront injectées ici -->
                 </div>
 
                 <!-- Message si vide -->
-                <div id="no-hotel-photos" class="text-center py-12 text-gray-500 hidden">
-                    <i class="fas fa-hotel text-5xl mb-4 opacity-50"></i>
-                    <p>Aucune photo d'hôtel. Uploadez des photos de vos hébergements !</p>
+                <div id="no-routes-photos" class="text-center py-12 text-gray-500 hidden">
+                    <i class="fas fa-road text-5xl mb-4 opacity-50"></i>
+                    <p>Aucune photo de route. Ajoutez des photos de vos routes panoramiques !</p>
                 </div>
 
                 <!-- Monitoring espace -->
                 <div class="bg-blue-50 p-4 rounded-lg mt-6">
                     <p class="text-sm text-gray-600 mb-2">
-                        📊 Espace utilisé : <strong id="space-used-hotels">0 MB</strong> / 5 GB
+                        📊 Espace utilisé : <strong id="space-used-routes">0 MB</strong> / 5 GB
                     </p>
                     <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div id="space-bar-hotels" class="bg-indigo-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                        <div id="space-bar-routes" class="bg-green-600 h-2 rounded-full transition-all" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
@@ -690,6 +729,69 @@
             </button>
             <button type="button" id="confirm-assign-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
                 <i class="fas fa-check mr-2"></i>Ajouter
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Sélection Restaurant -->
+<div id="restaurant-selector-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-semibold text-orange-600">
+                <i class="fas fa-utensils mr-2"></i>Suggérer un Restaurant
+            </h3>
+            <button id="close-restaurant-selector-btn" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times fa-2x"></i>
+            </button>
+        </div>
+
+        <p class="text-gray-600 mb-4">
+            Sélectionnez un restaurant de votre banque pour le suggérer à cette étape.
+        </p>
+
+        <!-- Barre de recherche -->
+        <div class="mb-6">
+            <div class="relative">
+                <input type="text" 
+                       id="restaurant-search-input" 
+                       placeholder="Rechercher un restaurant..." 
+                       class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <i class="fas fa-search absolute left-3 top-4 text-gray-400"></i>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div>
+                <select id="restaurant-city-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="">Toutes les villes</option>
+                </select>
+            </div>
+            <div>
+                <select id="restaurant-cuisine-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="">Tous les types</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Liste des restaurants -->
+        <div id="restaurant-selector-list" class="space-y-3 max-h-96 overflow-y-auto mb-6">
+            <!-- Les restaurants seront injectés ici -->
+        </div>
+
+        <!-- Message si aucun restaurant -->
+        <div id="no-restaurants-selector" class="hidden text-center py-12">
+            <i class="fas fa-utensils fa-4x text-gray-300 mb-4"></i>
+            <p class="text-gray-600 mb-4">Aucun restaurant dans votre banque</p>
+            <a href="/admin/restaurants" class="text-orange-600 hover:underline">
+                <i class="fas fa-plus mr-2"></i>Ajouter des restaurants
+            </a>
+        </div>
+
+        <div class="flex justify-end gap-4 mt-6 pt-6 border-t">
+            <button type="button" id="cancel-restaurant-selector-btn" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400 font-medium">
+                Annuler
             </button>
         </div>
     </div>

@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Banque de Médias - Admin{% endblock %}
+
+{% block extra_styles %}
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-out;
+    }
+    
+    .media-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .media-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    
+    .media-card img {
+        transition: transform 0.3s ease;
+    }
+    
+    .media-card:hover img {
+        transform: scale(1.05);
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
+    }
+    
+    .tag-badge {
+        animation: fadeIn 0.2s ease-out;
+    }
+    
+    .selection-mode .media-card {
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .selection-mode .media-card.selected {
+        ring: 3px solid #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    }
+    
+    .selection-checkbox {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 10;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+    }
+    
+    .selection-checkbox input[type="checkbox"] {
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        accent-color: #6366f1;
+    }
+    
+    #dropZone {
+        transition: all 0.3s ease;
+    }
+    
+    #dropZone.drag-over {
+        border-color: #3b82f6;
+        background-color: #eff6ff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Header avec Navigation -->
+    <div class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="text-gray-600 hover:text-gray-900 transition">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">
+                            <i class="fas fa-images text-indigo-600"></i> Banque de Médias
+                        </h1>
+                        <p class="text-sm text-gray-500">Photos de cols et routes pour vos voyages</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <!-- Barre d'actions pour sélection multiple (masquée par défaut) -->
+                    <div id="selectionActions" class="hidden flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2">
+                        <span id="selectedCount" class="text-sm font-medium text-indigo-900">0 sélectionné(s)</span>
+                        <button onclick="deleteSelectedMedia()" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg shadow-sm transition duration-150">
+                            <i class="fas fa-trash mr-2"></i>
+                            Supprimer
+                        </button>
+                        <button onclick="clearSelection()" class="inline-flex items-center px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded-lg shadow-sm transition duration-150">
+                            <i class="fas fa-times mr-2"></i>
+                            Annuler
+                        </button>
+                    </div>
+                    
+                    <button onclick="toggleSelectionMode()" id="btnSelectionMode" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
+                        <i class="fas fa-check-square mr-2"></i>
+                        Sélectionner
+                    </button>
+                    <button onclick="openUploadModal()" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
+                        <i class="fas fa-plus mr-2"></i>
+                        Nouveau Média
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Statistiques -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Total Médias -->
+            <div class="stat-card from-indigo-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-indigo-100 text-sm font-medium mb-1">Total Médias</p>
+                        <p class="text-3xl font-bold" id="statTotalMedia">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-images text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cols -->
+            <div class="stat-card from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-100 text-sm font-medium mb-1">Cols</p>
+                        <p class="text-3xl font-bold" id="statCols">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-mountain text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Routes -->
+            <div class="stat-card from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-green-100 text-sm font-medium mb-1">Routes</p>
+                        <p class="text-3xl font-bold" id="statRoutes">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-road text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tags Uniques -->
+            <div class="stat-card from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-purple-100 text-sm font-medium mb-1">Tags</p>
+                        <p class="text-3xl font-bold" id="statTags">0</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-full p-3">
+                        <i class="fas fa-tags text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barre de Recherche et Filtres -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Filtre Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                    <select id="typeFilter" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <option value="">Tous les types</option>
+                        <option value="col">Cols</option>
+                        <option value="route">Routes</option>
+                    </select>
+                </div>
+
+                <!-- Filtre Tag -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tag</label>
+                    <select id="tagFilter" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <option value="">Tous les tags</option>
+                    </select>
+                </div>
+
+                <!-- Tri -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Trier par</label>
+                    <select id="sortBy" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <option value="date">Date (récent)</option>
+                        <option value="type">Type</option>
+                        <option value="usage">Utilisation</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Liste des Médias -->
+        <div id="mediaContainer">
+            <div class="flex justify-center items-center py-20">
+                <div class="text-center">
+                    <div class="spinner mx-auto mb-4"></div>
+                    <p class="text-gray-500">Chargement des médias...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- État Vide -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
+                <i class="fas fa-images text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-2xl font-semibold text-gray-900 mb-2">Aucun média dans la banque</h3>
+            <p class="text-gray-500 mb-6">Commencez par ajouter vos premières photos</p>
+            <button onclick="openUploadModal()" class="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition">
+                <i class="fas fa-plus mr-2"></i>
+                Ajouter des médias
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Upload Médias -->
+<div id="uploadModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 transform transition-all">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-900">
+                    <i class="fas fa-upload text-indigo-600 mr-2"></i>
+                    Upload Médias
+                </h3>
+                <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <!-- Info Ctrl+V -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-blue-600 mt-0.5 mr-3"></i>
+                    <div class="text-sm text-blue-800">
+                        <p class="font-semibold mb-1">Astuce : Utilisez Ctrl+V (ou Cmd+V)</p>
+                        <p>Vous pouvez coller directement des images depuis votre presse-papiers !</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zone de Drop -->
+            <div id="dropZone" 
+                 class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer mb-6 transition-all"
+                 onclick="document.getElementById('mediaFiles').click()">
+                <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                <p class="text-lg font-semibold text-gray-700 mb-2">
+                    Cliquez ou glissez-déposez vos photos
+                </p>
+                <p class="text-sm text-gray-500">ou utilisez <kbd class="px-2 py-1 bg-gray-200 rounded">Ctrl+V</kbd></p>
+                <p class="text-xs text-gray-400 mt-2">JPG, PNG - Max 5MB par photo</p>
+            </div>
+
+            <!-- Input file caché -->
+            <input type="file" 
+                   id="mediaFiles" 
+                   accept="image/*" 
+                   multiple 
+                   class="hidden">
+
+            <!-- Prévisualisation et Métadonnées -->
+            <div id="uploadSection" class="hidden space-y-6">
+                <!-- Sélection du Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Type <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition hover:border-blue-500">
+                            <input type="radio" name="mediaType" value="col" class="mr-3" checked>
+                            <div>
+                                <div class="font-semibold text-gray-900">
+                                    <i class="fas fa-mountain text-blue-600 mr-2"></i>Col
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Photos de cols de montagne</p>
+                            </div>
+                        </label>
+                        <label class="relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition hover:border-green-500">
+                            <input type="radio" name="mediaType" value="route" class="mr-3">
+                            <div>
+                                <div class="font-semibold text-gray-900">
+                                    <i class="fas fa-road text-green-600 mr-2"></i>Route
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Photos de routes panoramiques</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Tags -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Tags (séparés par des virgules)
+                    </label>
+                    <input type="text" 
+                           id="mediaTags" 
+                           placeholder="Ex: Stelvio, Italie, Alpes"
+                           class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                    <p class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                        Les tags aident à organiser et retrouver vos médias
+                    </p>
+                </div>
+
+                <!-- Prévisualisation -->
+                <div>
+                    <h4 class="font-semibold text-gray-900 mb-3">
+                        Photos sélectionnées (<span id="photoCount">0</span>)
+                    </h4>
+                    <div id="previewGrid" class="grid grid-cols-4 gap-4 max-h-64 overflow-y-auto">
+                        <!-- Miniatures -->
+                    </div>
+                </div>
+
+                <!-- Barre de progression -->
+                <div id="uploadProgress" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Upload en cours...</span>
+                        <span class="text-sm font-medium text-gray-700" id="progressText">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button type="button" onclick="closeUploadModal()"
+                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    Annuler
+                </button>
+                <button type="button" id="btnUpload" onclick="uploadMedia()" disabled
+                        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-upload mr-2"></i>
+                    Upload <span id="uploadCount"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Détails Média -->
+<div id="mediaDetailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 transform transition-all">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-900">Détails du Média</h3>
+                <button onclick="closeDetailsModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <!-- Contenu -->
+            <div id="mediaDetailsContent" class="space-y-6">
+                <!-- Chargé dynamiquement -->
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button type="button" id="btnDeleteMedia" onclick="deleteMedia()"
+                        class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-sm transition">
+                    <i class="fas fa-trash mr-2"></i>
+                    Supprimer
+                </button>
+                <button type="button" onclick="closeDetailsModal()"
+                        class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/media.js') }}"></script>
+{% endblock %}
