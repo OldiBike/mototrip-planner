@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des POIs - MotoTrip Admin{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    <!-- En-tête -->
+    <header class="mb-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div class="mb-4 md:mb-0">
+                <div class="flex items-center gap-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h1 class="text-4xl font-bold text-gray-900">
+                            <i class="fas fa-map-marked-alt text-purple-600 mr-3"></i>
+                            Points d'Intérêt (POIs)
+                        </h1>
+                        <p class="text-lg text-gray-600 mt-2">Gérez les lieux touristiques pour vos voyages</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="add-poi-btn" class="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 font-semibold">
+                    <i class="fas fa-plus mr-2"></i>Ajouter un POI
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Statistiques -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total POIs</p>
+                    <p class="text-3xl font-bold text-gray-900" id="stat-total">0</p>
+                </div>
+                <div class="text-purple-500">
+                    <i class="fas fa-map-marked-alt fa-3x opacity-20"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Villes</p>
+                    <p class="text-3xl font-bold text-blue-600" id="stat-cities">0</p>
+                </div>
+                <div class="text-blue-500">
+                    <i class="fas fa-city fa-3x opacity-20"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Avec photos</p>
+                    <p class="text-3xl font-bold text-green-600" id="stat-with-photos">0</p>
+                </div>
+                <div class="text-green-500">
+                    <i class="fas fa-images fa-3x opacity-20"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-orange-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Catégories</p>
+                    <p class="text-3xl font-bold text-orange-600" id="stat-categories">0</p>
+                </div>
+                <div class="text-orange-500">
+                    <i class="fas fa-tags fa-3x opacity-20"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre de recherche et filtres -->
+    <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+        <div class="flex flex-col gap-4">
+            <!-- Ligne 1 : Recherche et filtres ville/catégorie -->
+            <div class="flex flex-col md:flex-row md:items-center gap-4">
+                <!-- Recherche -->
+                <div class="flex-1 relative">
+                    <input type="text" 
+                           id="search-input" 
+                           placeholder="Rechercher un POI..." 
+                           class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+
+                <!-- Filtre par ville -->
+                <div class="w-full md:w-64">
+                    <select id="city-filter" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">Toutes les villes</option>
+                    </select>
+                </div>
+
+                <!-- Filtre par catégorie -->
+                <div class="w-full md:w-64">
+                    <select id="category-filter" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">Toutes les catégories</option>
+                        <option value="monument">🏰 Monuments</option>
+                        <option value="nature">🌲 Nature</option>
+                        <option value="museum">🎨 Musées</option>
+                        <option value="activity">⚡ Activités</option>
+                        <option value="viewpoint">🔭 Points de vue</option>
+                        <option value="other">📍 Autres</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des POIs -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            POI
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Localisation
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Catégorie
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Informations
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Partenaires
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="pois-table-body" class="bg-white divide-y divide-gray-200">
+                    <!-- Les POIs seront injectés ici -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Message si aucun POI -->
+        <div id="no-pois-message" class="hidden p-12 text-center">
+            <i class="fas fa-map-marked-alt fa-4x text-gray-300 mb-4"></i>
+            <p class="text-gray-600 text-lg">Aucun POI dans la base</p>
+            <button onclick="document.getElementById('add-poi-btn').click()" class="mt-4 px-6 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium">
+                <i class="fas fa-plus mr-2"></i>Ajouter votre premier POI
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale Ajout/Édition POI -->
+<div id="poi-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-semibold text-purple-600">
+                <i class="fas fa-map-marked-alt mr-2"></i>
+                <span id="modal-title">Nouveau POI</span>
+            </h3>
+            <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times fa-2x"></i>
+            </button>
+        </div>
+
+        <form id="poi-form">
+            <input type="hidden" id="poi-id">
+
+            <!-- Informations de base -->
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-4">Informations générales</h4>
+                
+                <div class="mb-4">
+                    <label for="poi-name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Nom du POI <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="poi-name" required
+                           placeholder="Château de Bouillon"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="poi-city" class="block text-sm font-medium text-gray-700 mb-2">
+                            Ville <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="poi-city" required
+                               placeholder="Bouillon"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+
+                    <div>
+                        <label for="poi-category" class="block text-sm font-medium text-gray-700 mb-2">
+                            Catégorie <span class="text-red-500">*</span>
+                        </label>
+                        <select id="poi-category" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">Sélectionnez...</option>
+                            <option value="monument">🏰 Monument</option>
+                            <option value="nature">🌲 Nature</option>
+                            <option value="museum">🎨 Musée</option>
+                            <option value="activity">⚡ Activité</option>
+                            <option value="viewpoint">🔭 Point de vue</option>
+                            <option value="other">📍 Autre</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <label for="poi-address" class="block text-sm font-medium text-gray-700 mb-2">
+                        Adresse complète
+                    </label>
+                    <input type="text" id="poi-address"
+                           placeholder="Rue du Château 1, 6830 Bouillon"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <p class="text-xs text-gray-500 mt-1">Utilisée pour la géolocalisation automatique</p>
+                </div>
+
+                <div class="mt-4">
+                    <label for="poi-description" class="block text-sm font-medium text-gray-700 mb-2">
+                        Description
+                    </label>
+                    <textarea id="poi-description" rows="3"
+                              placeholder="Description du lieu..."
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+                </div>
+            </div>
+
+            <!-- Contact et informations pratiques -->
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-4">Informations pratiques</h4>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="poi-website" class="block text-sm font-medium text-gray-700 mb-2">
+                            Site web
+                        </label>
+                        <input type="url" id="poi-website" placeholder="https://..."
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+
+                    <div>
+                        <label for="poi-phone" class="block text-sm font-medium text-gray-700 mb-2">
+                            Téléphone
+                        </label>
+                        <input type="tel" id="poi-phone" placeholder="+32..."
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label for="poi-opening-hours" class="block text-sm font-medium text-gray-700 mb-2">
+                            Horaires d'ouverture
+                        </label>
+                        <input type="text" id="poi-opening-hours" placeholder="9h-18h"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+
+                    <div>
+                        <label for="poi-entry-fee" class="block text-sm font-medium text-gray-700 mb-2">
+                            Prix d'entrée (€)
+                        </label>
+                        <input type="number" id="poi-entry-fee" step="0.01" placeholder="0.00"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Partenaires -->
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">Partenaires</h4>
+                <p class="text-sm text-gray-600 mb-3">Sélectionnez les partenaires associés à ce POI (optionnel)</p>
+                
+                <div id="poi-partners-checkboxes" class="space-y-2">
+                    <!-- Les checkboxes des partenaires seront injectées ici -->
+                </div>
+            </div>
+
+            <!-- Photos -->
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">Photos</h4>
+                <input type="file" id="poi-photos-input" accept="image/*" multiple
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <p class="text-xs text-gray-500 mt-1">Formats acceptés : JPG, PNG (max 5MB par photo)</p>
+                
+                <!-- Prévisualisation des photos -->
+                <div id="photos-preview" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                    <!-- Les photos seront affichées ici -->
+                </div>
+            </div>
+
+            <!-- Boutons -->
+            <div class="flex justify-end gap-4">
+                <button type="button" id="cancel-btn" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400 font-medium">
+                    Annuler
+                </button>
+                <button type="submit" class="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 font-medium">
+                    <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg hidden opacity-0 transition-opacity z-50">
+    <div class="flex items-center">
+        <i class="fas fa-check-circle mr-2"></i>
+        <span id="toast-message"></span>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/pois.js') }}"></script>
+{% endblock %}

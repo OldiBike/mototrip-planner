@@ -48,6 +48,9 @@ function initializeEventListeners() {
         filterTrips();
     });
     
+    // Prix de vente par personne
+    document.getElementById('sale-price-pp-input')?.addEventListener('input', handleSalePriceChange);
+    
     // Nouveau voyage
     document.getElementById('add-trip-btn-new')?.addEventListener('click', openQuickAddTripModal);
     document.getElementById('quick-add-trip-form')?.addEventListener('submit', handleQuickAddTrip);
@@ -151,9 +154,19 @@ function openAddDayModal() {
     title.textContent = 'Ajouter une nouvelle étape';
     document.getElementById('save-day-btn').textContent = 'Enregistrer l\'étape';
     
-    // ⭐ NOUVEAU : Reset le sélecteur d'hôtels
+    // ⭐ NOUVEAU : Reset et recharge les hôtels avec filtrage par partenaires du voyage
     if (window.hotelSelector) {
         window.hotelSelector.reset();
+        
+        // ⭐ PHASE 6+ : Filtre les hôtels selon les partenaires du voyage
+        const partnerIds = currentTripData?.partnerIds || [];
+        if (partnerIds.length > 0) {
+            console.log(`🎯 Filtrage hôtels pour voyage avec ${partnerIds.length} partenaire(s)`);
+            window.hotelSelector.reload(partnerIds);
+        } else {
+            console.log('ℹ️ Pas de filtre partenaire pour ce voyage');
+            window.hotelSelector.reload();
+        }
     }
     
     toggleModal('add-day-modal', true);
@@ -1285,6 +1298,33 @@ function openQuickAddTripModal() {
     toggleModal('quick-add-trip-modal', true);
     document.getElementById('quick-trip-name').value = '';
     document.getElementById('quick-trip-name').focus();
+    loadPartnersForTripModal();
+}
+
+async function loadPartnersForTripModal() {
+    const container = document.getElementById('quick-trip-partners');
+    if (!container) return;
+    
+    try {
+        const response = await fetch('/admin/api/partners?active_only=false');
+        const data = await response.json();
+        
+        if (data.success && data.partners && data.partners.length > 0) {
+            container.innerHTML = data.partners.map(partner => `
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                    <input type="checkbox" name="trip-partners" value="${partner.id}" class="rounded">
+                    <span class="inline-flex items-center px-2 py-1 rounded" style="background: ${partner.color}20; color: ${partner.color};">
+                        ${partner.badgeIcon || '🤝'} ${partner.name}
+                    </span>
+                </label>
+            `).join('');
+        } else {
+            container.innerHTML = '<p class="text-sm text-gray-500">Aucun partenaire disponible</p>';
+        }
+    } catch (error) {
+        console.error('Erreur chargement partenaires:', error);
+        container.innerHTML = '<p class="text-sm text-red-500">Erreur de chargement</p>';
+    }
 }
 
 async function handleQuickAddTrip(e) {
@@ -1293,17 +1333,24 @@ async function handleQuickAddTrip(e) {
     
     if (!name) return;
     
+    const selectedPartners = Array.from(document.querySelectorAll('input[name="trip-partners"]:checked')).map(cb => cb.value);
+    
     try {
+        const tripData = { 
+            name,
+            partnerIds: selectedPartners,
+            filterMode: 'preferred'
+        };
+        
         const data = await fetchAPI('/admin/api/trips', {
             method: 'POST',
-            body: JSON.stringify({ name })
+            body: JSON.stringify(tripData)
         });
         
         if (data.success) {
             showToast('Voyage créé avec succès !', 'success');
             toggleModal('quick-add-trip-modal', false);
             await loadDashboardData();
-            // Ouvre directement le voyage
             openTripDetails(data.trip_id);
         }
     } catch (error) {
@@ -1502,6 +1549,37 @@ function updateCostCalculator(costs, salePrices) {
     document.getElementById('sale-solo').textContent = (salePrices.sale_solo || 0).toFixed(2) + '€';
     document.getElementById('margin-per-person').textContent = (salePrices.margin_per_person || 0).toFixed(2) + '€';
     document.getElementById('margin-percent').textContent = '(' + (salePrices.margin_percent || 0).toFixed(1) + '%)';
+}
+
+// ============================================
+// GESTION DU PRIX DE VENTE
+// ============================================
+
+let saveSalePriceTimeout = null;
+
+/**
+ * Gère le changement du prix de vente par personne avec debouncing
+ */
+async function handleSalePriceChange() {
+    const salePricePP = parseFloat(document.getElementById('sale-price-pp-input').value) || 0;
+    
+    // Debouncing : attend 1 seconde après la dernière frappe
+    if (saveSalePriceTimeout) clearTimeout(saveSalePriceTimeout);
+    
+    saveSalePriceTimeout = setTimeout(async () => {
+        if (currentTripId) {
+            try {
+                await fetchAPI(`/admin/api/trips/${currentTripId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ salePricePerPerson: salePricePP })
+                });
+                // Recharge les étapes pour mettre à jour les calculs
+                await loadDaysForConstruction();
+            } catch (error) {
+                console.error('Erreur sauvegarde prix:', error);
+            }
+        }
+    }, 1000);
 }
 
 /**
@@ -2595,7 +2673,7 @@ async function performManualSearch() {
 // ============================================
 
 function startPolling() {
-    // Vérifie les nouvelles demandes toutes les 30 secondes
+    // Vérifie les nouvelles demandes toutes les 5 minutes (réduit la charge serveur)
     setInterval(async () => {
         try {
             const data = await fetchAPI('/admin/api/trip-requests/new-count');
@@ -2612,7 +2690,7 @@ function startPolling() {
         } catch (error) {
             console.error('Erreur polling:', error);
         }
-    }, 30000);
+    }, 300000); // 5 minutes au lieu de 30 secondes
 }
 
 // ============================================

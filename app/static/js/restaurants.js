@@ -202,7 +202,7 @@ function renderRestaurants() {
 /**
  * Ouvre la modale pour ajouter/éditer un restaurant
  */
-function openRestaurantModal(restaurant = null) {
+async function openRestaurantModal(restaurant = null) {
     currentEditingId = restaurant?.id || null;
     
     const modal = document.getElementById('restaurant-modal');
@@ -211,6 +211,9 @@ function openRestaurantModal(restaurant = null) {
     
     // Réinitialise le formulaire
     form.reset();
+    
+    // ⭐ Charge les partenaires
+    await loadPartnersForRestaurantModal(restaurant?.partnerIds || []);
     
     if (restaurant) {
         // Mode édition
@@ -232,6 +235,42 @@ function openRestaurantModal(restaurant = null) {
 }
 
 /**
+ * ⭐ Charge les partenaires pour le formulaire restaurant
+ */
+async function loadPartnersForRestaurantModal(selectedPartnerIds = []) {
+    try {
+        const response = await fetch('/admin/api/partners');
+        const data = await response.json();
+        
+        if (data.success) {
+            const container = document.getElementById('restaurant-partners-checkboxes');
+            
+            if (data.partners.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">Aucun partenaire disponible</p>';
+                return;
+            }
+            
+            container.innerHTML = data.partners.map(partner => `
+                <label class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" 
+                           name="partners" 
+                           value="${partner.id}"
+                           ${selectedPartnerIds.includes(partner.id) ? 'checked' : ''}
+                           class="w-4 h-4 text-orange-600 rounded focus:ring-orange-500">
+                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium"
+                          style="background-color: ${partner.color}20; color: ${partner.color};">
+                        <span>${partner.badgeIcon || '🏷️'}</span>
+                        <span>${partner.name}</span>
+                    </span>
+                </label>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des partenaires:', error);
+    }
+}
+
+/**
  * Ferme la modale
  */
 function closeRestaurantModal() {
@@ -246,6 +285,11 @@ function closeRestaurantModal() {
 async function handleSubmitRestaurant(e) {
     e.preventDefault();
     
+    // ⭐ Récupère les partenaires sélectionnés
+    const selectedPartners = Array.from(
+        document.querySelectorAll('input[name="partners"]:checked')
+    ).map(cb => cb.value);
+    
     const restaurantData = {
         name: document.getElementById('restaurant-name').value.trim(),
         city: document.getElementById('restaurant-city').value.trim(),
@@ -254,7 +298,8 @@ async function handleSubmitRestaurant(e) {
         contact: {
             phone: document.getElementById('restaurant-phone').value.trim(),
             website: document.getElementById('restaurant-website').value.trim()
-        }
+        },
+        partnerIds: selectedPartners  // ⭐ Ajout des partenaires
     };
     
     try {

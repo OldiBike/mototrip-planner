@@ -9,6 +9,9 @@ from typing import Optional, Dict, List, Any
 class FirebaseService:
     """Service pour interagir avec Firebase Firestore"""
     
+    # Variable de classe pour suivre si l'initialisation a déjà été loguée
+    _initialization_logged = False
+    
     def __init__(self, app_id='default-app-id'):
         self.app_id = app_id
         self.mock_mode = False
@@ -16,7 +19,9 @@ class FirebaseService:
         try:
             # Initialise Firestore
             self.db = firestore.client()
-            print("✅ Firestore client initialisé")
+            # N'affiche le message qu'une seule fois
+            if not FirebaseService._initialization_logged:
+                print("✅ Firestore client initialisé")
         except Exception as e:
             print(f"⚠️  Firestore non disponible: {e}")
             self.db = None
@@ -25,19 +30,29 @@ class FirebaseService:
         try:
             # Initialise Storage
             self.bucket = storage.bucket()
-            print(f"✅ Firebase Storage bucket initialisé: {self.bucket.name}")
+            # N'affiche le message qu'une seule fois
+            if not FirebaseService._initialization_logged:
+                print(f"✅ Firebase Storage bucket initialisé: {self.bucket.name}")
         except Exception as e:
             print(f"⚠️  Firebase Storage non disponible: {e}")
             self.bucket = None
             if not self.mock_mode:
                 self.mock_mode = True
         
-        if self.mock_mode:
+        if self.mock_mode and not FirebaseService._initialization_logged:
             print("⚠️  Mode MOCK activé")
             self._mock_data = {
                 'trips': {},
                 'days': {}
             }
+        elif not hasattr(self, '_mock_data'):
+            self._mock_data = {
+                'trips': {},
+                'days': {}
+            }
+        
+        # Marque l'initialisation comme loguée
+        FirebaseService._initialization_logged = True
     
     # ============================================
     # GESTION DES UTILISATEURS ET AUTH
@@ -1263,10 +1278,16 @@ class FirebaseService:
     # GESTION DES HÔTELS (BANQUE DE DONNÉES)
     # ============================================
     
-    def get_hotels(self, user_id: str) -> List[Dict]:
-        """Récupère tous les hôtels de la banque"""
+    def get_hotels(self, user_id: str, partner_ids: List[str] = None) -> List[Dict]:
+        """Récupère tous les hôtels de la banque avec filtrage optionnel par partenaires"""
         try:
             hotels_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/hotels')
+            
+            # ⭐ PHASE 6: Filtrage par partenaires si fourni
+            if partner_ids and len(partner_ids) > 0:
+                # Firestore array_contains_any supporte max 10 éléments
+                hotels_ref = hotels_ref.where('partnerIds', 'array_contains_any', partner_ids[:10])
+            
             hotels = hotels_ref.order_by('name').stream()
             
             result = []
@@ -1458,10 +1479,16 @@ class FirebaseService:
     # GESTION DES RESTAURANTS
     # ============================================
 
-    def get_restaurants(self, user_id: str) -> List[Dict]:
-        """Récupère tous les restaurants de la banque"""
+    def get_restaurants(self, user_id: str, partner_ids: List[str] = None) -> List[Dict]:
+        """Récupère tous les restaurants de la banque avec filtrage optionnel par partenaires"""
         try:
             restaurants_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants')
+            
+            # ⭐ PHASE 6: Filtrage par partenaires si fourni
+            if partner_ids and len(partner_ids) > 0:
+                # Firestore array_contains_any supporte max 10 éléments
+                restaurants_ref = restaurants_ref.where('partnerIds', 'array_contains_any', partner_ids[:10])
+            
             restaurants = restaurants_ref.order_by('name').stream()
             
             result = []
@@ -1827,3 +1854,226 @@ class FirebaseService:
         except Exception as e:
             print(f"Erreur lors de la recherche de l'avis client: {e}")
             return None
+    
+    # ============================================
+    # GESTION DES PARTENAIRES (PARTNERS)
+    # ============================================
+    
+    def get_partners(self, active_only: bool = True) -> List[Dict]:
+        """Récupère tous les partenaires (collection globale)"""
+        try:
+            partners_ref = self.db.collection(f'artifacts/{self.app_id}/partners')
+            
+            if active_only:
+                partners = partners_ref.where('isActive', '==', True).stream()
+            else:
+                partners = partners_ref.stream()
+            
+            result = []
+            for partner in partners:
+                partner_data = partner.to_dict()
+                partner_data['id'] = partner.id
+                result.append(partner_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors de la récupération des partenaires: {e}")
+            return []
+    
+    def get_partner(self, partner_id: str) -> Optional[Dict]:
+        """Récupère un partenaire spécifique"""
+        try:
+            doc = self.db.collection(f'artifacts/{self.app_id}/partners').document(partner_id).get()
+            if doc.exists:
+                partner_data = doc.to_dict()
+                partner_data['id'] = doc.id
+                return partner_data
+            return None
+        except Exception as e:
+            print(f"Erreur lors de la récupération du partenaire: {e}")
+            return None
+    
+    def create_partner(self, partner_data: Dict) -> Optional[str]:
+        """Crée un nouveau partenaire (collection globale)"""
+        try:
+            partner_data['createdAt'] = firestore.SERVER_TIMESTAMP
+            
+            # Si un partnerId est fourni, l'utilise comme ID du document
+            partner_id = partner_data.pop('partnerId', None)
+            
+            if partner_id:
+                self.db.collection(f'artifacts/{self.app_id}/partners').document(partner_id).set(partner_data)
+                return partner_id
+            else:
+                doc_ref = self.db.collection(f'artifacts/{self.app_id}/partners').add(partner_data)
+                return doc_ref[1].id
+        except Exception as e:
+            print(f"Erreur lors de la création du partenaire: {e}")
+            return None
+    
+    def update_partner(self, partner_id: str, data: Dict) -> bool:
+        """Met à jour un partenaire"""
+        try:
+            self.db.collection(f'artifacts/{self.app_id}/partners').document(partner_id).update(data)
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour du partenaire: {e}")
+            return False
+    
+    def delete_partner(self, partner_id: str) -> bool:
+        """Supprime un partenaire"""
+        try:
+            self.db.collection(f'artifacts/{self.app_id}/partners').document(partner_id).delete()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la suppression du partenaire: {e}")
+            return False
+    
+    # ============================================
+    # GESTION DES POIs (POINTS D'INTÉRÊT)
+    # ============================================
+    
+    def get_pois(self, partner_ids: List[str] = None, city: str = None, category: str = None) -> List[Dict]:
+        """Récupère les POIs avec filtres optionnels (collection globale)"""
+        try:
+            pois_ref = self.db.collection(f'artifacts/{self.app_id}/pois')
+            
+            # Filtre par partenaires si fourni
+            if partner_ids and len(partner_ids) > 0:
+                pois_ref = pois_ref.where('partnerIds', 'array_contains_any', partner_ids)
+            
+            pois = pois_ref.stream()
+            
+            result = []
+            for poi in pois:
+                poi_data = poi.to_dict()
+                poi_data['id'] = poi.id
+                
+                # Filtres côté client (car Firestore limite les filtres composés)
+                if city and poi_data.get('city', '').lower() != city.lower():
+                    continue
+                
+                if category and poi_data.get('category') != category:
+                    continue
+                
+                result.append(poi_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors de la récupération des POIs: {e}")
+            return []
+    
+    def get_poi(self, poi_id: str) -> Optional[Dict]:
+        """Récupère un POI spécifique"""
+        try:
+            doc = self.db.collection(f'artifacts/{self.app_id}/pois').document(poi_id).get()
+            if doc.exists:
+                poi_data = doc.to_dict()
+                poi_data['id'] = doc.id
+                return poi_data
+            return None
+        except Exception as e:
+            print(f"Erreur lors de la récupération du POI: {e}")
+            return None
+    
+    def create_poi(self, poi_data: Dict) -> Optional[str]:
+        """Crée un nouveau POI (collection globale)"""
+        try:
+            poi_data['createdAt'] = firestore.SERVER_TIMESTAMP
+            poi_data['updatedAt'] = firestore.SERVER_TIMESTAMP
+            
+            doc_ref = self.db.collection(f'artifacts/{self.app_id}/pois').add(poi_data)
+            return doc_ref[1].id
+        except Exception as e:
+            print(f"Erreur lors de la création du POI: {e}")
+            return None
+    
+    def update_poi(self, poi_id: str, data: Dict) -> bool:
+        """Met à jour un POI"""
+        try:
+            data['updatedAt'] = firestore.SERVER_TIMESTAMP
+            self.db.collection(f'artifacts/{self.app_id}/pois').document(poi_id).update(data)
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour du POI: {e}")
+            return False
+    
+    def delete_poi(self, poi_id: str) -> bool:
+        """Supprime un POI"""
+        try:
+            self.db.collection(f'artifacts/{self.app_id}/pois').document(poi_id).delete()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la suppression du POI: {e}")
+            return False
+    
+    def get_pois_near(self, city: str, radius_km: int = 20, partner_ids: List[str] = None) -> List[Dict]:
+        """Récupère les POIs à proximité d'une ville (utilise coordonnées + calcul distance)"""
+        try:
+            import math
+            
+            # Récupère tous les POIs (avec filtre partenaire si fourni)
+            all_pois = self.get_pois(partner_ids=partner_ids)
+            
+            # Pour simplicité, filtre par ville exacte
+            # TODO: Implémenter géocodage ville → lat/lng + calcul distance Haversine
+            nearby_pois = []
+            city_lower = city.lower()
+            
+            for poi in all_pois:
+                poi_city = poi.get('city', '').lower()
+                
+                # Match exact ou ville contenue
+                if city_lower in poi_city or poi_city in city_lower:
+                    nearby_pois.append(poi)
+            
+            return nearby_pois
+        except Exception as e:
+            print(f"Erreur lors de la recherche de POIs à proximité: {e}")
+            return []
+    
+    # ============================================
+    # FILTRAGE PAR PARTENAIRES
+    # ============================================
+    
+    def get_hotels_by_partners(self, user_id: str, partner_ids: List[str]) -> List[Dict]:
+        """Récupère les hébergements d'un ou plusieurs partenaires"""
+        try:
+            if not partner_ids or len(partner_ids) == 0:
+                return self.get_hotels(user_id)
+            
+            hotels_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/hotels')
+            hotels_ref = hotels_ref.where('partnerIds', 'array_contains_any', partner_ids)
+            hotels = hotels_ref.stream()
+            
+            result = []
+            for hotel in hotels:
+                hotel_data = hotel.to_dict()
+                hotel_data['id'] = hotel.id
+                result.append(hotel_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors du filtrage des hôtels par partenaires: {e}")
+            return []
+    
+    def get_restaurants_by_partners(self, user_id: str, partner_ids: List[str]) -> List[Dict]:
+        """Récupère les restaurants d'un ou plusieurs partenaires"""
+        try:
+            if not partner_ids or len(partner_ids) == 0:
+                return self.get_restaurants(user_id)
+            
+            restaurants_ref = self.db.collection(f'artifacts/{self.app_id}/users/{user_id}/restaurants')
+            restaurants_ref = restaurants_ref.where('partnerIds', 'array_contains_any', partner_ids)
+            restaurants = restaurants_ref.stream()
+            
+            result = []
+            for restaurant in restaurants:
+                restaurant_data = restaurant.to_dict()
+                restaurant_data['id'] = restaurant.id
+                result.append(restaurant_data)
+            
+            return result
+        except Exception as e:
+            print(f"Erreur lors du filtrage des restaurants par partenaires: {e}")
+            return []

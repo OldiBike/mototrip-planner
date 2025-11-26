@@ -120,6 +120,16 @@
                     <i class="fas fa-images mr-2"></i>
                     Médias
                 </button>
+                <button id="tab-partners-btn" class="tab-btn flex items-center px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300"
+                        onclick="window.location.href='{{ url_for('partners.list_partners') }}'">
+                    <i class="fas fa-handshake mr-2"></i>
+                    Partenaires
+                </button>
+                <button id="tab-pois-btn" class="tab-btn flex items-center px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300"
+                        onclick="window.location.href='{{ url_for('pois.list_pois') }}'">
+                    <i class="fas fa-map-marker-alt mr-2"></i>
+                    POIs
+                </button>
             </nav>
         </div>
     </div>
@@ -365,6 +375,20 @@
                        placeholder="Ex: Alpes 10 jours"
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
+            
+            <!-- Partenaires (optionnel) -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Partenaires (optionnel)
+                </label>
+                <div id="quick-trip-partners" class="space-y-2 p-3 bg-gray-50 rounded-lg max-h-48 overflow-y-auto">
+                    <p class="text-sm text-gray-500">Chargement...</p>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                    Si vide, tous les partenaires seront autorisés
+                </p>
+            </div>
+            
             <div class="flex justify-end gap-4">
                 <button type="button" id="cancel-quick-add-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
                     Annuler

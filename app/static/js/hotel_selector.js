@@ -21,16 +21,28 @@ async function initHotelSelector() {
 }
 
 /**
- * Charge tous les hôtels depuis l'API
+ * Charge tous les hôtels depuis l'API avec filtrage optionnel par partenaires
+ * @param {Array} partnerIds - IDs des partenaires pour filtrer (optionnel)
  */
-async function loadHotelsForDropdown() {
+async function loadHotelsForDropdown(partnerIds = null) {
     try {
-        const response = await fetch('/admin/api/hotels');
+        // ⭐ NOUVEAU : Construit l'URL avec filtrage par partenaires si fourni
+        let url = '/admin/api/hotels';
+        if (partnerIds && partnerIds.length > 0) {
+            const partnersParam = partnerIds.join(',');
+            url += `?partners=${partnersParam}`;
+            console.log(`🔍 Filtrage hôtels par partenaires: ${partnersParam}`);
+        }
+        
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.success) {
             availableHotels = data.hotels;
-            console.log(`✅ ${availableHotels.length} hôtel(s) chargé(s)`);
+            const filterInfo = partnerIds && partnerIds.length > 0 
+                ? ` (filtrés par ${partnerIds.length} partenaire${partnerIds.length > 1 ? 's' : ''})` 
+                : '';
+            console.log(`✅ ${availableHotels.length} hôtel(s) chargé(s)${filterInfo}`);
             populateHotelDropdown();
         } else {
             console.error('❌ Erreur chargement hôtels:', data.error);

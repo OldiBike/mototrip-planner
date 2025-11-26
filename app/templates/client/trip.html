@@ -4,6 +4,11 @@
 
 {% block extra_styles %}
 <style>
+    :root {
+        --partner-primary: {{ partner_theme.primary_color or '#667eea' }};
+        --partner-secondary: {{ partner_theme.secondary_color or '#764ba2' }};
+    }
+    
     .timeline-item::before {
         content: counter(day);
         counter-increment: day;
@@ -12,7 +17,7 @@
         top: 20px;
         width: 40px;
         height: 40px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--partner-primary) 0%, var(--partner-secondary) 100%);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -25,6 +30,51 @@
     .timeline {
         counter-reset: day;
     }
+    
+    .partner-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .poi-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        border: 1px solid #d1d5db;
+    }
+    
+    {% if partner_theme.primary_color %}
+    .hero-section {
+        background: linear-gradient(135deg, var(--partner-primary) 0%, var(--partner-secondary) 100%) !important;
+    }
+    
+    .info-icon {
+        color: var(--partner-primary) !important;
+    }
+    
+    .stripe-button {
+        background: var(--partner-primary) !important;
+    }
+    
+    .stripe-button:hover {
+        opacity: 0.9;
+    }
+    
+    .certified-section {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 2px solid var(--partner-primary);
+    }
+    {% endif %}
 </style>
 {% endblock %}
 
@@ -34,6 +84,18 @@
 <section class="hero-section text-white py-20">
     <div class="container mx-auto px-4">
         <div class="max-w-4xl mx-auto text-center">
+            <!-- Partner Badges -->
+            {% if partners and partners|length > 0 %}
+            <div class="mb-6 flex justify-center gap-3 flex-wrap">
+                {% for partner in partners %}
+                <span class="partner-badge" style="background-color: {{ partner.color }}; color: white;">
+                    <span>{{ partner.badgeIcon }}</span>
+                    <span>{{ partner.name }}</span>
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
             <h1 class="text-5xl font-bold mb-6">
                 <i class="fas fa-motorcycle mr-4"></i>{{ trip.title }}
             </h1>
@@ -150,6 +212,23 @@
                         {% if day.description %}
                         <div class="mt-4 text-gray-700 leading-relaxed">
                             {{ day.description }}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- POIs -->
+                        {% if day.pois and day.pois|length > 0 %}
+                        <div class="mt-4">
+                            <h4 class="font-semibold text-gray-800 mb-2">
+                                <i class="fas fa-map-pin mr-2"></i>Points d'intérêt
+                            </h4>
+                            <div class="flex flex-wrap gap-2">
+                                {% for poi in day.pois %}
+                                <span class="poi-badge">
+                                    <span>{{ poi.icon or '📍' }}</span>
+                                    <span>{{ poi.name }}</span>
+                                </span>
+                                {% endfor %}
+                            </div>
                         </div>
                         {% endif %}
                         

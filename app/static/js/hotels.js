@@ -6,13 +6,17 @@
 // Variables globales
 let allHotels = [];
 let filteredHotels = [];
+let allPartners = [];
 
 // Au chargement de la page
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('🏨 Initialisation de la page Banque d\'Hôtels');
     
+    // Charge les partenaires en premier
+    await loadPartners();
+    
     // Charge les hôtels
-    loadHotels();
+    await loadHotels();
     
     // Event listeners
     setupEventListeners();
@@ -122,6 +126,48 @@ function extractFromRatehawkUrl(event) {
             setTimeout(() => loadingDiv.classList.add('hidden'), 500);
         }
     }
+}
+
+/**
+ * Charge tous les partenaires
+ */
+async function loadPartners() {
+    try {
+        const response = await fetch('/admin/api/partners?active_only=false');
+        const data = await response.json();
+        if (data.success) {
+            allPartners = data.partners;
+            console.log(`✅ ${allPartners.length} partenaire(s) chargé(s)`);
+        }
+    } catch (error) {
+        console.error('❌ Erreur chargement partenaires:', error);
+    }
+}
+
+/**
+ * Affiche les checkboxes partenaires dans le formulaire
+ */
+function renderPartnersCheckboxes(selectedPartnerIds = []) {
+    const container = document.getElementById('partnersCheckboxes');
+    if (!container) return;
+    
+    if (allPartners.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 italic">Aucun partenaire disponible</p>';
+        return;
+    }
+    
+    container.innerHTML = allPartners.map(partner => `
+        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
+            <input type="checkbox" 
+                   name="partners" 
+                   value="${partner.id}" 
+                   ${selectedPartnerIds.includes(partner.id) ? 'checked' : ''}
+                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <span class="partner-badge" style="background: ${partner.color}20; color: ${partner.color}; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                ${partner.badgeIcon || '🤝'} ${partner.name}
+            </span>
+        </label>
+    `).join('');
 }
 
 /**
@@ -298,6 +344,25 @@ function createHotelCard(hotel) {
     // Récupère la première photo de l'hôtel
     const firstPhoto = hotel.photos && hotel.photos.length > 0 ? hotel.photos[0] : null;
     
+    // 🏨 Type d'hébergement avec icône et couleur
+    const typeConfig = {
+        'hotel': { icon: '🏨', label: 'Hôtel', color: 'bg-blue-100 text-blue-700' },
+        'gite': { icon: '🏡', label: 'Gîte', color: 'bg-green-100 text-green-700' },
+        'chambre_hote': { icon: '🛏️', label: 'Chambre d\'hôtes', color: 'bg-purple-100 text-purple-700' },
+        'maison_hote': { icon: '🏠', label: 'Maison d\'hôtes', color: 'bg-orange-100 text-orange-700' }
+    };
+    const typeInfo = typeConfig[hotel.type] || typeConfig['hotel'];
+    
+    // 🤝 Badges partenaires
+    const partnerBadges = (hotel.partnerIds || []).map(partnerId => {
+        const partner = allPartners.find(p => p.id === partnerId);
+        if (!partner) return '';
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" 
+                      style="background: ${partner.color}20; color: ${partner.color};">
+                    ${partner.badgeIcon || '🤝'} ${partner.name}
+                </span>`;
+    }).join(' ');
+    
     // Génère les étoiles
     const starsHTML = rating > 0 
         ? `<div class="flex items-center space-x-1">
@@ -321,6 +386,10 @@ function createHotelCard(hotel) {
             <!-- Image Réelle ou Placeholder -->
             <div class="relative">
                 ${imageHTML}
+                <!-- Badge Type d'hébergement -->
+                <div class="absolute top-3 left-3 ${typeInfo.color} px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                    ${typeInfo.icon} ${typeInfo.label}
+                </div>
                 ${usedCount > 0 ? `
                     <div class="absolute top-3 right-3 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
                         <i class="fas fa-sync-alt mr-1"></i> ${usedCount}x
@@ -343,6 +412,13 @@ function createHotelCard(hotel) {
                         ${escapeHtml(hotel.city)}
                     </p>
                 </div>
+                
+                <!-- Badges Partenaires -->
+                ${hotel.partnerIds && hotel.partnerIds.length > 0 ? `
+                    <div class="flex flex-wrap gap-1">
+                        ${partnerBadges || '<span class="text-xs text-gray-400 italic">Partenaire introuvable</span>'}
+                    </div>
+                ` : ''}
                 
                 <!-- Évaluation et Utilisation -->
                 <div class="pt-2 border-t border-gray-100">
@@ -400,15 +476,24 @@ function openHotelModal(hotel = null) {
         document.getElementById('hotelName').value = hotel.name;
         document.getElementById('hotelCity').value = hotel.city;
         document.getElementById('hotelAddress').value = hotel.address || '';
+        document.getElementById('hotelDescription').value = hotel.description || '';
         document.getElementById('hotelPhone').value = hotel.contact?.phone || '';
         document.getElementById('hotelEmail').value = hotel.contact?.email || '';
         document.getElementById('hotelWebsite').value = hotel.contact?.website || '';
         document.getElementById('googlePlaceId').value = hotel.googlePlaceId || '';
+        document.getElementById('hotelType').value = hotel.type || 'hotel';
         document.getElementById('downloadGooglePhotos').checked = false;
+        
+        // Charge les partenaires avec sélection
+        renderPartnersCheckboxes(hotel.partnerIds || []);
     } else {
         // Mode création
         document.getElementById('hotelModalTitle').textContent = 'Nouvel Hôtel';
+        document.getElementById('hotelType').value = 'hotel';
         document.getElementById('downloadGooglePhotos').checked = true;
+        
+        // Charge les partenaires sans sélection
+        renderPartnersCheckboxes([]);
     }
     
     // Affiche la modale
@@ -439,11 +524,17 @@ async function saveHotel() {
     const hotelId = document.getElementById('hotelId').value;
     const isEdit = !!hotelId;
     
-    // Récupère les données du formulaire (SANS les prix)
+    // Récupère les partenaires sélectionnés
+    const selectedPartners = Array.from(document.querySelectorAll('input[name="partners"]:checked')).map(cb => cb.value);
+    
+    // Récupère les données du formulaire
     const hotelData = {
         name: document.getElementById('hotelName').value.trim(),
         city: document.getElementById('hotelCity').value.trim(),
         address: document.getElementById('hotelAddress').value.trim(),
+        description: document.getElementById('hotelDescription').value.trim(),
+        type: document.getElementById('hotelType').value,
+        partnerIds: selectedPartners,
         googlePlaceId: document.getElementById('googlePlaceId').value.trim(),
         contact: {
             phone: document.getElementById('hotelPhone').value.trim(),
@@ -551,6 +642,12 @@ async function viewHotelDetails(hotelId) {
                                 <dt class="text-sm font-medium text-gray-600">Adresse</dt>
                                 <dd class="text-sm text-gray-900">${escapeHtml(hotel.address || 'Non renseignée')}</dd>
                             </div>
+                            ${hotel.description ? `
+                                <div class="col-span-2 pt-2 border-t border-gray-200">
+                                    <dt class="text-sm font-medium text-gray-600 mb-1">Description</dt>
+                                    <dd class="text-sm text-gray-700 italic">${escapeHtml(hotel.description)}</dd>
+                                </div>
+                            ` : ''}
                             <div class="flex justify-between">
                                 <dt class="text-sm font-medium text-gray-600">Téléphone</dt>
                                 <dd class="text-sm text-gray-900">${escapeHtml(hotel.contact?.phone || 'Non renseigné')}</dd>
@@ -1048,4 +1145,231 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text || '';
     return div.innerHTML;
+}
+
+
+// ============================================
+// IMPORT EXCEL
+// ============================================
+
+let selectedExcelFile = null;
+
+/**
+ * Ouvre la modale d'import Excel
+ */
+function openImportModal() {
+    const modal = document.getElementById('importModal');
+    
+    // Reset
+    selectedExcelFile = null;
+    document.getElementById('excelFile').value = '';
+    document.getElementById('filePreview').classList.add('hidden');
+    document.getElementById('importPartner').value = '';
+    document.getElementById('importDownloadPhotos').checked = true;
+    document.getElementById('importSkipDuplicates').checked = true;
+    document.getElementById('importProgress').classList.add('hidden');
+    document.getElementById('importReport').classList.add('hidden');
+    document.getElementById('btnStartImport').disabled = true;
+    
+    // Charge les partenaires dans le select
+    const select = document.getElementById('importPartner');
+    select.innerHTML = '<option value="">Sélectionnez un partenaire...</option>';
+    
+    allPartners.forEach(partner => {
+        const option = document.createElement('option');
+        option.value = partner.id;
+        option.textContent = `${partner.badgeIcon || '🤝'} ${partner.name}`;
+        select.appendChild(option);
+    });
+    
+    // Affiche la modale
+    modal.classList.remove('hidden');
+}
+
+/**
+ * Ferme la modale d'import
+ */
+function closeImportModal() {
+    const modal = document.getElementById('importModal');
+    modal.classList.add('hidden');
+    selectedExcelFile = null;
+}
+
+/**
+ * Gère la sélection d'un fichier Excel
+ */
+function handleExcelFileSelected(event) {
+    const file = event.target.files[0];
+    
+    if (!file) return;
+    
+    // Vérifie l'extension
+    if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+        showToast('Format de fichier invalide (xlsx, xls uniquement)', 'error');
+        return;
+    }
+    
+    // Sauvegarde le fichier
+    selectedExcelFile = file;
+    
+    // Affiche l'aperçu
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileInfo').textContent = `Taille: ${(file.size / 1024).toFixed(1)} Ko`;
+    document.getElementById('filePreview').classList.remove('hidden');
+    
+    // Active le bouton si un partenaire est sélectionné
+    checkImportReadiness();
+}
+
+/**
+ * Retire le fichier Excel sélectionné
+ */
+function removeExcelFile() {
+    selectedExcelFile = null;
+    document.getElementById('excelFile').value = '';
+    document.getElementById('filePreview').classList.add('hidden');
+    document.getElementById('btnStartImport').disabled = true;
+}
+
+/**
+ * Vérifie si l'import peut être lancé
+ */
+function checkImportReadiness() {
+    const partnerId = document.getElementById('importPartner').value;
+    const btnStart = document.getElementById('btnStartImport');
+    
+    btnStart.disabled = !(selectedExcelFile && partnerId);
+}
+
+// Event listener pour le changement de partenaire
+document.addEventListener('DOMContentLoaded', () => {
+    const partnerSelect = document.getElementById('importPartner');
+    if (partnerSelect) {
+        partnerSelect.addEventListener('change', checkImportReadiness);
+    }
+});
+
+/**
+ * Lance l'import Excel
+ */
+async function startImport() {
+    if (!selectedExcelFile) {
+        showToast('Aucun fichier sélectionné', 'error');
+        return;
+    }
+    
+    const partnerId = document.getElementById('importPartner').value;
+    if (!partnerId) {
+        showToast('Veuillez sélectionner un partenaire', 'error');
+        return;
+    }
+    
+    // Prépare le FormData
+    const formData = new FormData();
+    formData.append('file', selectedExcelFile);
+    formData.append('partnerId', partnerId);
+    formData.append('downloadPhotos', document.getElementById('importDownloadPhotos').checked);
+    formData.append('skipDuplicates', document.getElementById('importSkipDuplicates').checked);
+    
+    // Désactive le bouton
+    const btnStart = document.getElementById('btnStartImport');
+    const originalHTML = btnStart.innerHTML;
+    btnStart.disabled = true;
+    btnStart.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
+    
+    // Affiche la barre de progression
+    const progressDiv = document.getElementById('importProgress');
+    const progressBar = document.getElementById('importProgressBar');
+    const progressText = document.getElementById('importProgressText');
+    const progressDetail = document.getElementById('importProgressDetail');
+    
+    progressDiv.classList.remove('hidden');
+    progressBar.style.width = '0%';
+    progressText.textContent = '0%';
+    progressDetail.textContent = 'Envoi du fichier...';
+    
+    try {
+        // Simule la progression pendant l'upload
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += 5;
+            if (progress > 90) {
+                clearInterval(progressInterval);
+            }
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `${progress}%`;
+            
+            if (progress < 20) {
+                progressDetail.textContent = 'Lecture du fichier Excel...';
+            } else if (progress < 50) {
+                progressDetail.textContent = 'Analyse avec Gemini AI...';
+            } else if (progress < 80) {
+                progressDetail.textContent = 'Importation des hôtels...';
+            } else {
+                progressDetail.textContent = 'Finalisation...';
+            }
+        }, 200);
+        
+        // Appel API
+        const response = await fetch('/admin/api/hotels/import-excel', {
+            method: 'POST',
+            body: formData
+        });
+        
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+        progressDetail.textContent = 'Import terminé !';
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Masque la barre de progression
+            setTimeout(() => {
+                progressDiv.classList.add('hidden');
+            }, 500);
+            
+            // Affiche le rapport
+            document.getElementById('reportImported').textContent = data.imported;
+            document.getElementById('reportSkipped').textContent = data.skipped;
+            document.getElementById('reportErrors').textContent = data.errors;
+            
+            // Affiche les détails des erreurs si présents
+            const reportDetails = document.getElementById('reportDetails');
+            if (data.error_details && data.error_details.length > 0) {
+                reportDetails.innerHTML = `
+                    <h5 class="font-semibold text-gray-900 mb-2">Détails des erreurs:</h5>
+                    <ul class="text-sm text-red-600 space-y-1">
+                        ${data.error_details.map(err => `<li>• ${err}</li>`).join('')}
+                    </ul>
+                `;
+            } else {
+                reportDetails.innerHTML = '';
+            }
+            
+            document.getElementById('importReport').classList.remove('hidden');
+            
+            showToast(`✅ Import terminé: ${data.imported} importés, ${data.skipped} ignorés, ${data.errors} erreurs`, 'success');
+            
+            // Recharge les hôtels après 2 secondes
+            setTimeout(async () => {
+                await loadHotels();
+                // Ferme la modale après 3 secondes
+                setTimeout(() => {
+                    closeImportModal();
+                }, 3000);
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Erreur lors de l\'import');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur import:', error);
+        showToast(`Erreur lors de l'import: ${error.message}`, 'error');
+        
+        // Masque la progression et réactive le bouton
+        progressDiv.classList.add('hidden');
+        btnStart.disabled = false;
+        btnStart.innerHTML = originalHTML;
+    }
 }

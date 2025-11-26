@@ -1880,12 +1880,19 @@ def api_get_trip_media(trip_id):
 @bp.route('/api/hotels', methods=['GET'])
 @login_required
 def api_get_hotels():
-    """API: Récupère tous les hôtels de la banque"""
+    """API: Récupère tous les hôtels de la banque avec filtrage optionnel par partenaires"""
     user_id = get_current_user_id()
     firebase = get_firebase_service()
     
+    # ⭐ PHASE 6: Filtrage par partenaires
+    partners_filter = request.args.get('partners', None)
+    if partners_filter:
+        partner_ids = [p.strip() for p in partners_filter.split(',') if p.strip()]
+    else:
+        partner_ids = None
+    
     try:
-        hotels = firebase.get_hotels(user_id)
+        hotels = firebase.get_hotels(user_id, partner_ids=partner_ids)
         return jsonify({'success': True, 'hotels': hotels})
     except Exception as e:
         current_app.logger.error(f"Erreur récupération hôtels: {str(e)}")
@@ -2316,6 +2323,202 @@ def api_delete_hotel_review(hotel_id, review_id):
 
 
 # ============================================
+# API ROUTES - IMPORT EXCEL HÔTELS
+# ============================================
+
+@bp.route('/api/hotels/import-excel', methods=['POST'])
+@login_required
+def api_import_hotels_from_excel():
+    """API: Importe des hôtels depuis un fichier Excel avec parsing Gemini AI"""
+    user_id = get_current_user_id()
+    
+    try:
+        # Vérification du fichier Excel
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Aucun fichier fourni'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Nom de fichier vide'}), 400
+        
+        # Vérification de l'extension
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'Format de fichier invalide (xlsx, xls uniquement)'}), 400
+        
+        # Récupération des paramètres
+        partner_id = request.form.get('partnerId')
+        if not partner_id:
+            return jsonify({'success': False, 'error': 'Partenaire requis'}), 400
+        
+        download_photos = request.form.get('downloadPhotos', 'false').lower() == 'true'
+        skip_duplicates = request.form.get('skipDuplicates', 'true').lower() == 'true'
+        
+        # Lecture du fichier Excel
+        import pandas as pd
+        from app.services.gemini_service import parse_hotel_data
+        
+        try:
+            df = pd.read_excel(file, sheet_name=0)
+            current_app.logger.info(f"📊 Fichier Excel lu: {len(df)} lignes")
+            current_app.logger.info(f"📋 Colonnes trouvées: {list(df.columns)}")
+            
+            # Affiche un échantillon de la première ligne
+            if len(df) > 0:
+                first_row = df.iloc[0].to_dict()
+                current_app.logger.info(f"📝 Première ligne (échantillon): {first_row}")
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Erreur lecture Excel: {str(e)}'}), 400
+        
+        # Compteurs
+        imported = 0
+        skipped = 0
+        errors = []
+        
+        firebase = get_firebase_service()
+        
+        # Traitement de chaque ligne
+        for index, row in df.iterrows():
+            try:
+                # Convertit la ligne en dictionnaire
+                raw_data = row.to_dict()
+                
+                # Parse avec Gemini AI
+                parsed = parse_hotel_data(raw_data)
+                
+                if not parsed or not parsed.get('name') or not parsed.get('city'):
+                    errors.append(f"Ligne {index + 1}: Données incomplètes")
+                    continue
+                
+                # Vérification des doublons
+                if skip_duplicates:
+                    existing = firebase.search_hotels(user_id, parsed['name'], parsed['city'])
+                    duplicate = next((h for h in existing 
+                                    if h['name'].lower() == parsed['name'].lower() 
+                                    and h['city'].lower() == parsed['city'].lower()), None)
+                    
+                    if duplicate:
+                        skipped += 1
+                        current_app.logger.info(f"⏭️  Ligne {index + 1}: Doublon ignoré ({parsed['name']})")
+                        continue
+                
+                # Prépare les données pour Firebase
+                hotel_data = {
+                    'name': parsed['name'],
+                    'city': parsed['city'],
+                    'address': parsed['address'],
+                    'description': parsed['description'],
+                    'type': parsed['type'],
+                    'partnerIds': [partner_id],
+                    'contact': {
+                        'phone': parsed['phone'],
+                        'email': '',
+                        'website': parsed['website']
+                    },
+                    'photos': []
+                }
+                
+                # Création de l'hôtel
+                hotel_id = firebase.create_hotel(user_id, hotel_data)
+                
+                if hotel_id:
+                    imported += 1
+                    current_app.logger.info(f"✅ Ligne {index + 1}: {parsed['name']} importé")
+                    
+                    # Téléchargement des photos Google Places si demandé
+                    if download_photos:
+                        try:
+                            import requests
+                            from datetime import datetime
+                            
+                            google_api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+                            
+                            # Recherche sur Google Maps
+                            search_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json'
+                            search_params = {
+                                'input': f"{parsed['name']}, {parsed['city']}",
+                                'inputtype': 'textquery',
+                                'fields': 'place_id',
+                                'key': google_api_key
+                            }
+                            
+                            search_response = requests.get(search_url, params=search_params, timeout=10)
+                            search_data = search_response.json()
+                            
+                            if search_data.get('status') == 'OK' and search_data.get('candidates'):
+                                place_id = search_data['candidates'][0]['place_id']
+                                
+                                # Récupère les photos
+                                details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+                                details_params = {
+                                    'place_id': place_id,
+                                    'fields': 'photos',
+                                    'key': google_api_key
+                                }
+                                
+                                details_response = requests.get(details_url, params=details_params, timeout=10)
+                                details_data = details_response.json()
+                                
+                                if details_data.get('status') == 'OK':
+                                    photos_data = details_data.get('result', {}).get('photos', [])[:5]
+                                    
+                                    firebase_storage = firebase.get_storage()
+                                    photo_urls = []
+                                    
+                                    for idx, photo in enumerate(photos_data):
+                                        photo_reference = photo.get('photo_reference')
+                                        if photo_reference:
+                                            photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={photo_reference}&key={google_api_key}"
+                                            
+                                            photo_response = requests.get(photo_url, timeout=30)
+                                            photo_response.raise_for_status()
+                                            
+                                            timestamp = int(datetime.now().timestamp() * 1000)
+                                            file_name = f"{timestamp}_import_{idx + 1}.jpg"
+                                            hotel_slug = parsed['name'].lower().replace(' ', '_').replace("'", '')
+                                            hotel_slug = ''.join(c for c in hotel_slug if c.isalnum() or c == '_')
+                                            
+                                            storage_path = f"users/{user_id}/hotels/{hotel_slug}/{file_name}"
+                                            
+                                            blob = firebase_storage.blob(storage_path)
+                                            blob.upload_from_string(photo_response.content, content_type='image/jpeg')
+                                            blob.make_public()
+                                            
+                                            photo_urls.append(blob.public_url)
+                                    
+                                    # Met à jour l'hôtel avec les photos
+                                    if photo_urls:
+                                        firebase.update_hotel(user_id, hotel_id, {'photos': photo_urls})
+                                        current_app.logger.info(f"📸 {len(photo_urls)} photo(s) téléchargée(s) pour {parsed['name']}")
+                        
+                        except Exception as photo_error:
+                            current_app.logger.error(f"⚠️  Erreur photos pour {parsed['name']}: {photo_error}")
+                            # Continue sans photos
+                
+                else:
+                    errors.append(f"Ligne {index + 1}: Erreur création ({parsed['name']})")
+            
+            except Exception as row_error:
+                errors.append(f"Ligne {index + 1}: {str(row_error)}")
+                current_app.logger.error(f"❌ Erreur ligne {index + 1}: {row_error}")
+        
+        # Rapport final
+        return jsonify({
+            'success': True,
+            'imported': imported,
+            'skipped': skipped,
+            'errors': len(errors),
+            'error_details': errors[:10]  # Max 10 erreurs dans le rapport
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"❌ Erreur import Excel: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
 # API ROUTES - GESTION DES RESTAURANTS
 # ============================================
 
@@ -2329,12 +2532,19 @@ def restaurants():
 @bp.route('/api/restaurants', methods=['GET'])
 @login_required
 def api_get_restaurants():
-    """API: Récupère tous les restaurants de la banque"""
+    """API: Récupère tous les restaurants de la banque avec filtrage optionnel par partenaires"""
     user_id = get_current_user_id()
     firebase = get_firebase_service()
     
+    # ⭐ PHASE 6: Filtrage par partenaires
+    partners_filter = request.args.get('partners', None)
+    if partners_filter:
+        partner_ids = [p.strip() for p in partners_filter.split(',') if p.strip()]
+    else:
+        partner_ids = None
+    
     try:
-        restaurants = firebase.get_restaurants(user_id)
+        restaurants = firebase.get_restaurants(user_id, partner_ids=partner_ids)
         return jsonify({'success': True, 'restaurants': restaurants})
     except Exception as e:
         current_app.logger.error(f"Erreur récupération restaurants: {str(e)}")

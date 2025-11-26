@@ -32,10 +32,71 @@ def view_published_trip(slug):
         if not trip_data.get('isActive', False):
             abort(404)  # Ne pas afficher les voyages inactifs
         
+        # ⭐ PHASE 7: Charger les partenaires du voyage
+        partner_ids = trip_data.get('partnerIds', [])
+        partners = []
+        partner_theme = {
+            'primary_color': None,
+            'secondary_color': None
+        }
+        
+        if partner_ids and len(partner_ids) > 0:
+            for partner_id in partner_ids:
+                partner = firebase_service.get_partner(partner_id)
+                if partner and partner.get('isActive', True):
+                    partners.append({
+                        'id': partner.get('id'),
+                        'name': partner.get('name'),
+                        'slug': partner.get('slug'),
+                        'color': partner.get('color'),
+                        'badgeIcon': partner.get('badgeIcon'),
+                        'logo': partner.get('logo')
+                    })
+            
+            # Utilise le premier partenaire pour le thème
+            if partners:
+                first_partner = firebase_service.get_partner(partner_ids[0])
+                if first_partner:
+                    partner_theme = {
+                        'primary_color': first_partner.get('color', '#667eea'),
+                        'secondary_color': first_partner.get('displayConfig', {}).get('secondaryColor', '#764ba2')
+                    }
+        
+        # ⭐ PHASE 7: Enrichir les jours avec les POIs
+        days = trip_data.get('days', [])
+        for day in days:
+            day_pois = []
+            poi_ids = day.get('pois', [])
+            
+            if poi_ids and len(poi_ids) > 0:
+                # Mapping des icônes par catégorie
+                category_icons = {
+                    'monument': '🏰',
+                    'nature': '🌲',
+                    'museum': '🎨',
+                    'activity': '⚡',
+                    'viewpoint': '🔭',
+                    'other': '📍'
+                }
+                
+                for poi_id in poi_ids:
+                    poi = firebase_service.get_poi(poi_id)
+                    if poi:
+                        day_pois.append({
+                            'id': poi.get('id'),
+                            'name': poi.get('name'),
+                            'category': poi.get('category'),
+                            'icon': category_icons.get(poi.get('category', 'other'), '📍'),
+                            'description': poi.get('description', ''),
+                            'website': poi.get('website', '')
+                        })
+            
+            day['pois'] = day_pois
+        
         # Calculer la distance totale
         total_distance = sum(
             day.get('distance', 0) 
-            for day in trip_data.get('days', [])
+            for day in days
         )
         
         # Préparer les données pour le template
@@ -43,7 +104,7 @@ def view_published_trip(slug):
             'title': trip_data.get('title', ''),
             'description': trip_data.get('description', ''),
             'pricePerPerson': trip_data.get('pricePerPerson', 0),
-            'days': trip_data.get('days', []),
+            'days': days,
             'slug': slug
         }
         
@@ -58,7 +119,9 @@ def view_published_trip(slug):
             trip=trip,
             trip_json=trip_json,
             total_distance=total_distance,
-            google_maps_key=google_maps_key
+            google_maps_key=google_maps_key,
+            partners=partners,
+            partner_theme=partner_theme
         )
         
     except Exception as e:
