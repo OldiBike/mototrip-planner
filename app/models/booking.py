@@ -10,12 +10,16 @@ class TripBooking:
     
     def __init__(self, booking_id, trip_template_id, organizer_user_id, start_date, end_date,
                  total_participants, total_amount, deposit_amount=0, remaining_amount=0,
+                 required_deposit=0, # Nouveau champ CRM 2.0
                  payment_status='pending', stripe_session_id='', stripe_payment_intent_id='',
                  access_token='', status='pending', current_participants=1,
+                 join_code='', leader_details=None,
+                 force_reveal=False, trip_snapshot=None,
                  created_at=None, updated_at=None):
         self.booking_id = booking_id
         self.trip_template_id = trip_template_id
         self.organizer_user_id = organizer_user_id
+        self.trip_snapshot = trip_snapshot
         
         # Dates
         self.start_date = start_date
@@ -24,11 +28,14 @@ class TripBooking:
         # Participants
         self.total_participants = total_participants
         self.current_participants = current_participants
+        self.join_code = join_code
+        self.leader_details = leader_details or {}
         
         # Paiement
         self.total_amount = float(total_amount)
-        self.deposit_amount = float(deposit_amount)
+        self.deposit_amount = float(deposit_amount) # Ce qui a été payé
         self.remaining_amount = float(remaining_amount)
+        self.required_deposit = float(required_deposit) # Ce qui est demandé comme acompte
         self.payment_status = payment_status
         self.stripe_session_id = stripe_session_id
         self.stripe_payment_intent_id = stripe_payment_intent_id
@@ -38,6 +45,7 @@ class TripBooking:
         
         # Statut
         self.status = status
+        self.force_reveal = force_reveal
         self.created_at = created_at or datetime.now().isoformat()
         self.updated_at = updated_at or datetime.now().isoformat()
     
@@ -65,14 +73,18 @@ class TripBooking:
             'endDate': self.end_date,
             'totalParticipants': self.total_participants,
             'currentParticipants': self.current_participants,
+            'joinCode': self.join_code,
+            'leaderDetails': self.leader_details,
             'totalAmount': self.total_amount,
             'depositAmount': self.deposit_amount,
             'remainingAmount': self.remaining_amount,
+            'requiredDeposit': self.required_deposit,
             'paymentStatus': self.payment_status,
             'stripeSessionId': self.stripe_session_id,
             'stripePaymentIntentId': self.stripe_payment_intent_id,
             'accessToken': self.access_token,
             'status': self.status,
+            'forceReveal': self.force_reveal,
             'createdAt': self.created_at,
             'updatedAt': self.updated_at
         }
@@ -88,20 +100,102 @@ class TripBooking:
             end_date=data.get('endDate', ''),
             total_participants=data.get('totalParticipants', 1),
             current_participants=data.get('currentParticipants', 1),
+            join_code=data.get('joinCode', ''),
+            leader_details=data.get('leaderDetails', {}),
             total_amount=data.get('totalAmount', 0),
             deposit_amount=data.get('depositAmount', 0),
             remaining_amount=data.get('remainingAmount', 0),
+            required_deposit=data.get('requiredDeposit', 0),
             payment_status=data.get('paymentStatus', 'pending'),
             stripe_session_id=data.get('stripeSessionId', ''),
             stripe_payment_intent_id=data.get('stripePaymentIntentId', ''),
             access_token=data.get('accessToken', ''),
+
             status=data.get('status', 'pending'),
+            force_reveal=data.get('forceReveal', False),
+            trip_snapshot=data.get('tripSnapshot', None),
             created_at=data.get('createdAt'),
             updated_at=data.get('updatedAt')
         )
     
     def __repr__(self):
         return f"<TripBooking {self.booking_id} - {self.status}>"
+    
+    # Propriétés de compatibilité pour Jinja (camelCase -> snake_case)
+    @property
+    def totalAmount(self):
+        return self.total_amount
+        
+    @property
+    def depositAmount(self):
+        return self.deposit_amount
+        
+    @property
+    def remainingAmount(self):
+        return self.remaining_amount
+        
+    @property
+    def requiredDeposit(self):
+        return self.required_deposit
+        
+    @property
+    def paymentStatus(self):
+        return self.payment_status
+
+    @property
+    def accessToken(self):
+        return self.access_token
+
+    @property
+    def forceReveal(self):
+        return self.force_reveal_val if hasattr(self, 'force_reveal_val') else self.force_reveal
+    
+    @property
+    def tripSnapshot(self):
+        return self.trip_snapshot
+    
+    @forceReveal.setter
+    def forceReveal(self, value):
+        self.force_reveal_val = value # avoid recursion if any
+
+
+
+    @property
+    def currentParticipants(self):
+        return self.current_participants
+        
+    @property
+    def totalParticipants(self):
+        return self.total_participants
+        
+    @property
+    def tripTemplateId(self):
+        return self.trip_template_id
+        
+    @property
+    def organizerUserId(self):
+        return self.organizer_user_id
+        
+    @property
+    def leaderDetails(self):
+        return self.leader_details
+        
+    @property
+    def startDate(self):
+        return self.start_date
+        
+    @property
+    def endDate(self):
+        return self.end_date
+
+    @property
+    def bookingId(self):
+        return self.booking_id
+        
+    # Alias pour ID générique si besoin
+    @property
+    def id(self):
+        return self.booking_id
 
 
 class Participant:

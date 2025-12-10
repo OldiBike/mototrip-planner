@@ -55,10 +55,11 @@ def create_app():
     init_firebase()
     
     # Enregistre les blueprints
-    from app.routes import admin, client, api, hotels, auth, trips, bookings, webhooks, partners, pois
+    from app.routes import admin, client, api, hotels, auth, trips, bookings, webhooks, partners, pois, public
     
     app.register_blueprint(admin.bp)
     app.register_blueprint(client.bp)
+    app.register_blueprint(public.bp)
     app.register_blueprint(api.bp)
     app.register_blueprint(hotels.bp)
     app.register_blueprint(auth.bp)

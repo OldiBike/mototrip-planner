@@ -1,260 +1,276 @@
 """
-Routes pour les clients (visualisation des voyages publiés)
+Routes pour l'espace client privé (Roadbook)
 """
-from flask import Blueprint, render_template, abort, current_app, request, jsonify
-import json
-
+from flask import Blueprint, render_template, abort, current_app, request, redirect, url_for, flash
+from werkzeug.exceptions import HTTPException
+from datetime import datetime, timedelta
 from app.services.firebase_service import FirebaseService
 
 bp = Blueprint('client', __name__)
 
-@bp.route('/voyageperso/<slug>')
-def view_published_trip(slug):
-    """
-    Affiche un voyage publié pour les clients
-    
-    Args:
-        slug: Le slug unique du voyage publié (URL-friendly)
-    
-    Returns:
-        Template HTML avec les détails du voyage
-    """
+@bp.route('/client/join', methods=['GET', 'POST'])
+def join_group():
+    """Page pour rejoindre un groupe avec un code"""
+    if request.method == 'POST':
+        join_code = request.form.get('join_code')
+        # Todo: Verify code logic
+        # if valid: return redirect(url_for('client.view_roadbook', token='...'))
+        pass
+        
+    return render_template('client/join.html')
+
+
+@bp.route('/proxy-map')
+def proxy_map():
+    """Proxy pour afficher les Static Maps Google (contourne restrictions Referrer/CORS)"""
+    url = request.args.get('url')
+    if not url:
+        return "", 404
+        
     try:
-        firebase_service = FirebaseService()
-        
-        # Récupérer le voyage publié depuis Firebase
-        trip_data = firebase_service.get_published_trip(slug)
-        
-        if not trip_data:
-            abort(404)
-        
-        # Vérifier si le voyage est actif
-        if not trip_data.get('isActive', False):
-            abort(404)  # Ne pas afficher les voyages inactifs
-        
-        # ⭐ PHASE 7: Charger les partenaires du voyage
-        partner_ids = trip_data.get('partnerIds', [])
-        partners = []
-        partner_theme = {
-            'primary_color': None,
-            'secondary_color': None
+        import requests
+        # On tente de se faire passer pour le site de prod si la clé est restreinte
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+            'Referer': 'https://oldibike.be/' 
         }
         
-        if partner_ids and len(partner_ids) > 0:
-            for partner_id in partner_ids:
-                partner = firebase_service.get_partner(partner_id)
-                if partner and partner.get('isActive', True):
-                    partners.append({
-                        'id': partner.get('id'),
-                        'name': partner.get('name'),
-                        'slug': partner.get('slug'),
-                        'color': partner.get('color'),
-                        'badgeIcon': partner.get('badgeIcon'),
-                        'logo': partner.get('logo')
-                    })
-            
-            # Utilise le premier partenaire pour le thème
-            if partners:
-                first_partner = firebase_service.get_partner(partner_ids[0])
-                if first_partner:
-                    partner_theme = {
-                        'primary_color': first_partner.get('color', '#667eea'),
-                        'secondary_color': first_partner.get('displayConfig', {}).get('secondaryColor', '#764ba2')
-                    }
+        response = requests.get(url, headers=headers)
         
-        # ⭐ PHASE 7: Enrichir les jours avec les POIs
-        days = trip_data.get('days', [])
-        for day in days:
-            day_pois = []
-            poi_ids = day.get('pois', [])
+        if response.status_code != 200:
+            current_app.logger.error(f"Proxy Map Error {response.status_code}: {response.text}")
+            return "", response.status_code
             
-            if poi_ids and len(poi_ids) > 0:
-                # Mapping des icônes par catégorie
-                category_icons = {
-                    'monument': '🏰',
-                    'nature': '🌲',
-                    'museum': '🎨',
-                    'activity': '⚡',
-                    'viewpoint': '🔭',
-                    'other': '📍'
-                }
+        return response.content, 200, {'Content-Type': 'image/png'}
+        
+    except Exception as e:
+        current_app.logger.error(f"Proxy Map Exception: {str(e)}")
+        return "", 500
+
+@bp.route('/<token>')
+def view_roadbook(token):
+    """
+    Vue privée du Roadbook pour un client (accès par lien unique)
+    Supporte deux types de tokens :
+    1. Token Participant (Individuel, idéal pour les groupes)
+    2. Token Booking (Général, pour l'organisateur)
+    """
+    try:
+        firebase = FirebaseService()
+        
+        booking = None
+        participant = None
+        
+        # 1. Essai : Identifier un Participant (Priorité pour personnaliser l'expérience)
+        participant = firebase.get_participant_by_token(token)
+        if participant:
+            booking = firebase.get_booking(participant.booking_id)
+        
+        # 2. Essai : Identifier un Booking (Fallback Organisateur)
+        if not booking:
+            booking = firebase.get_booking_by_token(token)
+            if booking:
+                # On essaie de deviner le participant organisateur
+                # (Simplification: on prend le leader_details ou premier participant)
+                pass
+
+        if not booking:
+            current_app.logger.warning(f"Roadbook 404: Aucune réservation trouvée pour le token {token}")
+            abort(404)
+            
+        # 2. Récupération du Voyage
+        # NOUVEAU LOGIQUE: On vérifie si un Snapshot existe (Voyage Personnalisé)
+        trip_data = None
+        
+        # Le snapshot est stocké sous forme de dictionnaire dans booking (no attribute access via .tripSnapshot if it's a dict object returned from firebase or model)
+        # Note: booking object might be a class
+        snapshot = getattr(booking, 'trip_snapshot', None) 
+        # Si booking est un dict ou un objet avec accesseur dictionnaire
+        if not snapshot and hasattr(booking, 'get'):
+             snapshot = booking.get('tripSnapshot')
+             
+        if snapshot and snapshot.get('days'):
+            current_app.logger.info(f"Using Trip Snapshot for booking {booking.booking_id or token}")
+            trip_data = snapshot
+        else:
+            current_app.logger.warning(f"Snapshot missing or empty for {token}. Falling back to Template.")
+            # FALLBACK: Voyage Public associé
+            # FALLBACK 1: Voyage Interne (Source de vérité)
+            trip_id = booking.trip_template_id
+            organizer_id = booking.organizer_user_id
+            
+            if organizer_id and trip_id:
+                current_app.logger.info(f"Falling back to Internal Trip: {trip_id} (Org: {organizer_id})")
+                trip_data = firebase.get_trip(organizer_id, trip_id)
+            
+            # FALLBACK 2: Voyage Publié (Si interne échoue ou pas d'organizer)
+            if not trip_data:
+                current_app.logger.info(f"Falling back to Published Trip: {trip_id}")
+                trip_data = firebase.get_published_trip(trip_id)
                 
-                for poi_id in poi_ids:
-                    poi = firebase_service.get_poi(poi_id)
-                    if poi:
-                        day_pois.append({
-                            'id': poi.get('id'),
-                            'name': poi.get('name'),
-                            'category': poi.get('category'),
-                            'icon': category_icons.get(poi.get('category', 'other'), '📍'),
-                            'description': poi.get('description', ''),
-                            'website': poi.get('website', '')
-                        })
+            # FALLBACK 3: Tentative de récupération par Slug (Si ID UUID orphelin)
+            if not trip_data and snapshot and snapshot.get('name'):
+                import re
+                import unidecode
+                slug_candidate = unidecode.unidecode(snapshot['name']).lower()
+                slug_candidate = re.sub(r'[^a-z0-9]+', '-', slug_candidate).strip('-')
+                current_app.logger.info(f"Trying to recover trip via Slug: {slug_candidate}")
+                trip_data = firebase.get_published_trip(slug_candidate)
+
+        if not trip_data:
+            current_app.logger.error(f"Roadbook DATA ERROR: Trip {booking.trip_template_id} not found for booking {booking.booking_id}")
+            # Graceful degraded mode: Show "Preparation" state instead of 404
+            trip_data = {
+                'title': snapshot.get('name', 'Voyage en préparation') if snapshot else 'Voyage en préparation',
+                'days': [], 
+                'mapImage': None,
+                'coverImage': None
+            }
+            # abort(404) # Do not abort, show degraded UI
             
+        # 3. Logique de protection (Blurring)
+        days_before_reveal = 4
+        is_revealed = False
+        reveal_date = None
+        
+        if booking.start_date:
+            try:
+                # Supporte string ISO ou datetime object si déjà converti par model
+                start_dt = booking.start_date
+                if isinstance(start_dt, str):
+                    start_dt = datetime.fromisoformat(start_dt.replace('Z', '+00:00'))
+                
+                reveal_dt = start_dt - timedelta(days=days_before_reveal)
+                now = datetime.now(reveal_dt.tzinfo) 
+                reveal_date = reveal_dt
+                
+                if now >= reveal_dt:
+                    is_revealed = True
+                if booking.force_reveal:
+                    is_revealed = True
+            except Exception as e:
+                current_app.logger.error(f"Erreur date: {e}")
+        
+        # 4. Enrichissement des données (Hôtels & POIs)
+        days = trip_data.get('days', [])
+        current_app.logger.info(f"DEBUG ROADBOOK: Trip Title: {trip_data.get('title')}")
+        current_app.logger.info(f"DEBUG ROADBOOK: Days count: {len(days)}")
+        if not days:
+            current_app.logger.error(f"DEBUG ROADBOOK ERROR: Days list is EMPTY for token {token}!")
+            current_app.logger.error(f"Trip Data Keys: {trip_data.keys()}")
+
+        for day in days:
+            # Enrichir Hôtel (Si ID présent et pas déjà l'objet complet)
+            if day.get('hotelId') and not isinstance(day.get('hotel'), dict):
+                hotel = firebase.get_hotel(booking.organizer_user_id or 'admin', day['hotelId']) 
+                # Fallback: try finding hotel in general if user context is vague
+                if not hotel and booking.organizer_user_id: 
+                     hotel = firebase.get_hotel(booking.organizer_user_id, day['hotelId'])
+                
+                day['hotel'] = hotel
+            
+            # Enrichir POIs (Similaire à public view)
+            day_pois = []
+            for poi_item in day.get('pois', []):
+                # Nouveau format snapshot peut contenir les objets complets ou juste IDs
+                poi_id = poi_item if isinstance(poi_item, str) else poi_item.get('id')
+                
+                if poi_id:
+                     poi = firebase.get_poi(poi_id)
+                     if poi:
+                        poi['icon'] = '📍' # Simplification
+                        day_pois.append(poi)
             day['pois'] = day_pois
-        
-        # Calculer la distance totale
-        total_distance = sum(
-            day.get('distance', 0) 
-            for day in days
-        )
-        
-        # Préparer les données pour le template
-        trip = {
-            'title': trip_data.get('title', ''),
-            'description': trip_data.get('description', ''),
-            'pricePerPerson': trip_data.get('pricePerPerson', 0),
-            'days': days,
-            'slug': slug
-        }
-        
-        # Convertir les données en JSON pour JavaScript
-        trip_json = json.dumps(trip)
-        
-        # Récupérer la clé API Google Maps depuis la config
-        google_maps_key = current_app.config.get('GOOGLE_MAPS_API_KEY', '')
-        
-        return render_template(
-            'client/trip.html',
-            trip=trip,
-            trip_json=trip_json,
-            total_distance=total_distance,
-            google_maps_key=google_maps_key,
-            partners=partners,
-            partner_theme=partner_theme
-        )
-        
+
+        # Debug Map URL & Fix Key
+        if trip_data and trip_data.get('mapImage'):
+             import re
+             original_url = trip_data['mapImage']
+             # Force use of known good key (Config default) instead of potentially bad env var
+             valid_key = 'AIzaSyDFNp_SRKMbOncczpg21uL_d0q2bRlpeeY'
+             
+             valid_key = 'AIzaSyDFNp_SRKMbOncczpg21uL_d0q2bRlpeeY'
+             
+             # Swap key
+             if 'key=' in original_url:
+                 # 1. Swap Key
+                 fixed_url = re.sub(r'key=[^&]+', f'key={valid_key}', original_url)
+                 
+                 # 2. Force RED Trace (OldiBike Brand) instead of Pink
+                 fixed_url = re.sub(r'color:0x[a-fA-F0-9]+', 'color:0xff0000ff', fixed_url)
+                 
+                 # 3. Force Roadmap + High DPI
+                 fixed_url = fixed_url.replace('maptype=terrain', 'maptype=roadmap')
+                 if 'scale=' not in fixed_url:
+                     fixed_url += '&scale=2'
+
+                 # 4. Optional: Add Dark Mode Style (If requested later, but for now Standard Red is safer)
+                 # fixed_url += '&style=feature:all|element:geometry|color:0x242f3e&style=feature:all|element:labels.text.stroke|visibility:off...'
+
+                 trip_data['mapImage'] = fixed_url
+                 print(f"DEBUG: Map Improved (Red Trace, Roadmap). New URL Start: {fixed_url[:50]}...")
+        else:
+             print("DEBUG: Roadbook rendering with NO MAP IMAGE")
+
+        return render_template('client/roadbook.html',
+                             booking=booking,
+                             trip=trip_data,
+                             is_revealed=is_revealed,
+                             reveal_date=reveal_date,
+                             now=datetime.now())
+            
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        current_app.logger.error(f"Error loading published trip {slug}: {str(e)}")
-        abort(404)
+        current_app.logger.error(f"Erreur roadbook: {e}")
+        return render_template('errors/500.html'), 500
 
+@bp.route('/api/gps-guide')
+def get_gps_guide():
+    """API pour l'assistant GPS Moto (Live AI + Cache)"""
+    from app.services.firebase_service import FirebaseService
+    from app.services.gemini_service import generate_gps_guide
+    from app.services.gps_guides_data import GPS_GUIDES # Fallback statique de haute qualité
+    import re
 
-@bp.route('/voyages')
-def list_published_trips():
-    """
-    Liste tous les voyages publiés et actifs
-    (Peut être implémenté plus tard si besoin d'une page catalogue)
-    """
-    try:
-        firebase_service = FirebaseService()
-        
-        # Récupérer tous les voyages publiés
-        all_trips = firebase_service.get_all_published_trips()
-        
-        # Filtrer uniquement les voyages actifs
-        active_trips = [
-            trip for trip in all_trips 
-            if trip.get('isActive', False)
-        ]
-        
-        return render_template(
-            'client/trips_list.html',
-            trips=active_trips
-        )
-        
-    except Exception as e:
-        current_app.logger.error(f"Error loading published trips: {str(e)}")
-        return render_template('client/trips_list.html', trips=[])
+    query = request.args.get('q', '').strip()
+    if not query:
+        return {'found': False}
 
-
-@bp.route('/voyageperso/<slug>/checkout', methods=['POST'])
-def create_checkout_session(slug):
-    """Crée une session Stripe Checkout pour un voyage"""
-    try:
-        from app.services.stripe_service import StripeService
-        from app.services.firebase_service import FirebaseService
-        
-        firebase_service = FirebaseService()
-        
-        # Récupère le voyage publié
-        trip_data = firebase_service.get_published_trip(slug)
-        
-        if not trip_data or not trip_data.get('isActive', False):
-            return jsonify({'error': 'Voyage non disponible'}), 404
-        
-        # Récupère les données du formulaire
-        data = request.get_json()
-        quantity = int(data.get('quantity', 1))
-        customer_email = data.get('email')
-        
-        # Crée la session Stripe
-        stripe_service = StripeService()
-        session_data = stripe_service.create_checkout_session(
-            trip_slug=slug,
-            trip_title=trip_data.get('title'),
-            price_per_person=trip_data.get('pricePerPerson', 0),
-            quantity=quantity,
-            customer_email=customer_email
-        )
-        
-        return jsonify({
-            'success': True,
-            'checkout_url': session_data['checkout_url']
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error creating checkout session: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
-@bp.route('/voyageperso/<slug>/success')
-def payment_success(slug):
-    """Page de confirmation après paiement réussi"""
-    session_id = request.args.get('session_id')
+    # 1. Normalisation de la clé (ex: "Garmin Zumo XT" -> "garmin_zumo_xt")
+    key = re.sub(r'[^a-z0-9]', '_', query.lower())
     
-    if not session_id:
-        abort(400)
+    firebase = FirebaseService()
+
+    # 2. Check Database (Cache)
+    cached_guide = firebase.get_gps_guide(key)
+    if cached_guide:
+        return {'found': True, 'data': cached_guide}
+
+    # 3. Check Static Fallback (Premium content we wrote manually)
+    # We map specific keywords to our static premium guides
+    matched_static_key = None
+    q_lower = query.lower()
+    if 'liberty' in q_lower: matched_static_key = 'liberty'
+    elif 'calimoto' in q_lower: matched_static_key = 'calimoto'
+    elif 'garmin' in q_lower or 'zumo' in q_lower or 'xt' in q_lower: matched_static_key = 'garmin'
+    elif 'tomtom' in q_lower or 'rider' in q_lower: matched_static_key = 'tomtom'
+    elif 'osmand' in q_lower or 'gaia' in q_lower: matched_static_key = 'osmand'
+
+    if matched_static_key:
+        guide_data = GPS_GUIDES[matched_static_key]
+        # Optionnel: On pourrait le sauvegarder dans Firebase pour que 'garmin_zumo' pointe dessus directement
+        return {'found': True, 'data': guide_data}
+
+    # 4. AI Generation (Gemini)
+    # Si inconnu, on demande à Gemini de générer le guide
+    ai_result = generate_gps_guide(query)
     
-    try:
-        from app.services.stripe_service import StripeService
-        from app.services.firebase_service import FirebaseService
-        
-        stripe_service = StripeService()
-        firebase_service = FirebaseService()
-        
-        # Récupère les détails de la session
-        session = stripe_service.retrieve_session(session_id)
-        
-        # Récupère le voyage
-        trip_data = firebase_service.get_published_trip(slug)
-        
-        if not trip_data:
-            abort(404)
-        
-        return render_template(
-            'client/success.html',
-            trip=trip_data,
-            session=session
-        )
-        
-    except Exception as e:
-        current_app.logger.error(f"Error on success page: {str(e)}")
-        abort(500)
-
-
-@bp.route('/voyageperso/<slug>/cancel')
-def payment_cancel(slug):
-    """Page affichée si le paiement est annulé"""
-    try:
-        from app.services.firebase_service import FirebaseService
-        
-        firebase_service = FirebaseService()
-        trip_data = firebase_service.get_published_trip(slug)
-        
-        if not trip_data:
-            abort(404)
-        
-        return render_template(
-            'client/cancel.html',
-            trip=trip_data
-        )
-        
-    except Exception as e:
-        current_app.logger.error(f"Error on cancel page: {str(e)}")
-        abort(500)
-
-
-@bp.errorhandler(404)
-def not_found(error):
-    """Gestion des erreurs 404 pour les routes client"""
-    return render_template('errors/404.html'), 404
+    if ai_result.get('found', False) and not ai_result.get('needs_clarification'):
+        # 5. Store result for next time
+        # On utilise la clé normalisée pour retrouver ce résultat
+        firebase.save_gps_guide(key, ai_result['data'])
+        return {'found': True, 'data': ai_result['data']}
+    
+    # 6. Returns (Found/Not Found or Needs Clarification)
+    return ai_result

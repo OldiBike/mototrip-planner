@@ -192,6 +192,7 @@ def join(invitation_token):
                 'email': participant.email,
                 'firstName': first_name,
                 'lastName': last_name,
+                'name': f"{first_name} {last_name}".strip(),
                 'phone': phone,
                 'passwordHash': generate_password_hash(password, method='pbkdf2:sha256'),
                 'role': 'customer',
@@ -249,6 +250,7 @@ def profile():
         user_data = {
             'firstName': first_name,
             'lastName': last_name,
+            'name': f"{first_name} {last_name}".strip(),
             'phone': phone
         }
         

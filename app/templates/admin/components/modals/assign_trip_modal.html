@@ -1,0 +1,51 @@
+<!-- ASSIGN TRIP MODAL -->
+<div id="assign-trip-modal"
+    class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-full max-w-md transform transition-all scale-100">
+        <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+            <h3 class="text-xl font-bold text-gray-900">Assigner un voyage</h3>
+            <button class="close-modal text-gray-400 hover:text-gray-600 focus:outline-none"
+                onclick="toggleModal(document.getElementById('assign-trip-modal'), false)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form id="assign-trip-form" class="space-y-5">
+            <div>
+                <label for="select-trip" class="block text-sm font-medium text-gray-700 mb-2">Voyage *</label>
+                <select id="select-trip" required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                    <option value="">-- Sélectionnez un voyage --</option>
+                    {% for trip in available_trips %}
+                    <option value="{{ trip.id }}" data-name="{{ trip.name }}" data-duration="{{ trip.duration }}">
+                        {{ trip.name }} ({{ trip.duration }} jours)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="trip-start-date" class="block text-sm font-medium text-gray-700 mb-2">Date de début
+                    *</label>
+                <input type="date" id="trip-start-date" required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                <p id="trip-duration-info" class="text-sm text-gray-500 mt-2 italic"></p>
+            </div>
+
+            <!-- Hidden end date, calculated by JS -->
+            <input type="hidden" id="trip-end-date">
+
+            <div class="flex justify-end gap-3 pt-4">
+                <button type="button" id="cancel-assign-btn"
+                    class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                    onclick="toggleModal(document.getElementById('assign-trip-modal'), false)">
+                    Annuler
+                </button>
+                <button type="submit"
+                    class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm flex items-center">
+                    <i class="fas fa-check mr-2"></i> Assigner
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

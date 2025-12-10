@@ -11,13 +11,13 @@ let allPartners = [];
 // Au chargement de la page
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🏨 Initialisation de la page Banque d\'Hôtels');
-    
+
     // Charge les partenaires en premier
     await loadPartners();
-    
+
     // Charge les hôtels
     await loadHotels();
-    
+
     // Event listeners
     setupEventListeners();
 });
@@ -30,12 +30,12 @@ function setupEventListeners() {
     document.getElementById('searchInput').addEventListener('input', (e) => {
         filterAndDisplayHotels();
     });
-    
+
     // Filtre par ville
     document.getElementById('cityFilter').addEventListener('change', () => {
         filterAndDisplayHotels();
     });
-    
+
     // Tri
     document.getElementById('sortBy').addEventListener('change', () => {
         filterAndDisplayHotels();
@@ -49,10 +49,10 @@ function setupEventListeners() {
 function setupRatehawkAutocomplete() {
     const urlInput = document.getElementById('ratehawkUrl');
     if (!urlInput) return;
-    
+
     // Supprime les anciens listeners pour éviter les doublons
     if (urlInput.dataset.listenerAdded) return;
-    
+
     urlInput.addEventListener('input', extractFromRatehawkUrl);
     urlInput.dataset.listenerAdded = 'true';
 }
@@ -64,29 +64,29 @@ function setupRatehawkAutocomplete() {
 function extractFromRatehawkUrl(event) {
     const url = event.target.value.trim();
     const loadingDiv = document.getElementById('ratehawkLoading');
-    
+
     if (!url || !url.includes('ratehawk.com')) {
         if (loadingDiv) loadingDiv.classList.add('hidden');
         return;
     }
-    
+
     // Affiche le loading
     if (loadingDiv) loadingDiv.classList.remove('hidden');
-    
+
     try {
         const urlObj = new URL(url);
         const pathParts = urlObj.pathname.split('/').filter(p => p);
-        
+
         // Format attendu: /hotel/{country}/{city}/{...}/{hotel_name}
         if (pathParts.length >= 5 && pathParts[0] === 'hotel') {
             const city = pathParts[2];
             const hotelName = pathParts[4];
-            
+
             // Nettoie et formate la ville
             const cleanCity = city.split('-')
                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(' ');
-            
+
             // Nettoie et formate le nom de l'hôtel
             const cleanHotelName = hotelName.replace(/_/g, ' ')
                 .split(' ')
@@ -94,26 +94,26 @@ function extractFromRatehawkUrl(event) {
                 .join(' ')
                 .replace(/\s+/g, ' ')
                 .trim();
-            
+
             // Remplit les champs
             const cityInput = document.getElementById('hotelCity');
             const hotelInput = document.getElementById('hotelName');
-            
+
             if (cityInput && !cityInput.value) {
                 cityInput.value = cleanCity;
                 cityInput.classList.add('bg-green-50');
                 setTimeout(() => cityInput.classList.remove('bg-green-50'), 1000);
             }
-            
+
             if (hotelInput && !hotelInput.value) {
                 hotelInput.value = cleanHotelName;
                 hotelInput.classList.add('bg-green-50');
                 setTimeout(() => hotelInput.classList.remove('bg-green-50'), 1000);
             }
-            
+
             // Affiche un message de succès
             showToast(`✅ Informations extraites : ${cleanHotelName} à ${cleanCity}`, 'success');
-            
+
         } else {
             showToast('⚠️ Format d\'URL RateHawk non reconnu', 'warning');
         }
@@ -150,12 +150,12 @@ async function loadPartners() {
 function renderPartnersCheckboxes(selectedPartnerIds = []) {
     const container = document.getElementById('partnersCheckboxes');
     if (!container) return;
-    
+
     if (allPartners.length === 0) {
         container.innerHTML = '<p class="text-sm text-gray-500 italic">Aucun partenaire disponible</p>';
         return;
     }
-    
+
     container.innerHTML = allPartners.map(partner => `
         <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
             <input type="checkbox" 
@@ -177,11 +177,11 @@ async function loadHotels() {
     try {
         const response = await fetch('/admin/api/hotels');
         const data = await response.json();
-        
+
         if (data.success) {
             allHotels = data.hotels;
             console.log(`✅ ${allHotels.length} hôtel(s) chargé(s)`);
-            
+
             // Met à jour l'interface
             updateStatistics();
             populateCityFilter();
@@ -200,22 +200,22 @@ async function loadHotels() {
  */
 function updateStatistics() {
     const totalHotels = allHotels.length;
-    
+
     // Nombre de villes uniques
     const cities = new Set(allHotels.map(h => h.city));
     const totalCities = cities.size;
-    
+
     // Note moyenne globale
     const hotelsWithRatings = allHotels.filter(h => h.ratings && h.ratings.averageRating > 0);
     const avgRating = hotelsWithRatings.length > 0
         ? (hotelsWithRatings.reduce((sum, h) => sum + h.ratings.averageRating, 0) / hotelsWithRatings.length).toFixed(1)
         : '0.0';
-    
+
     // Total des avis
     const totalReviews = allHotels.reduce((sum, h) => {
         return sum + (h.ratings?.totalRatings || 0);
     }, 0);
-    
+
     // Affiche les stats avec animation
     animateValue('statTotalHotels', 0, totalHotels, 500);
     animateValue('statCities', 0, totalCities, 500);
@@ -231,7 +231,7 @@ function animateValue(id, start, end, duration) {
     const range = end - start;
     const increment = range / (duration / 16);
     let current = start;
-    
+
     const timer = setInterval(() => {
         current += increment;
         if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
@@ -248,10 +248,10 @@ function animateValue(id, start, end, duration) {
 function populateCityFilter() {
     const cities = [...new Set(allHotels.map(h => h.city))].sort();
     const select = document.getElementById('cityFilter');
-    
+
     // Vide les options existantes (sauf "Toutes les villes")
     select.innerHTML = '<option value="">Toutes les villes</option>';
-    
+
     // Ajoute chaque ville
     cities.forEach(city => {
         const option = document.createElement('option');
@@ -268,18 +268,18 @@ function filterAndDisplayHotels() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const cityFilter = document.getElementById('cityFilter').value;
     const sortBy = document.getElementById('sortBy').value;
-    
+
     // Filtre
     filteredHotels = allHotels.filter(hotel => {
         const matchesSearch = hotel.name.toLowerCase().includes(searchTerm) ||
-                            hotel.city.toLowerCase().includes(searchTerm) ||
-                            (hotel.address && hotel.address.toLowerCase().includes(searchTerm));
-        
+            hotel.city.toLowerCase().includes(searchTerm) ||
+            (hotel.address && hotel.address.toLowerCase().includes(searchTerm));
+
         const matchesCity = !cityFilter || hotel.city === cityFilter;
-        
+
         return matchesSearch && matchesCity;
     });
-    
+
     // Tri
     filteredHotels.sort((a, b) => {
         switch (sortBy) {
@@ -295,7 +295,7 @@ function filterAndDisplayHotels() {
                 return 0;
         }
     });
-    
+
     // Affiche
     displayHotels(filteredHotels);
 }
@@ -306,29 +306,29 @@ function filterAndDisplayHotels() {
 function displayHotels(hotels) {
     const container = document.getElementById('hotelsContainer');
     const emptyState = document.getElementById('emptyState');
-    
+
     if (hotels.length === 0) {
         container.innerHTML = '';
         emptyState.classList.remove('hidden');
         return;
     }
-    
+
     emptyState.classList.add('hidden');
-    
+
     // Crée la grille de cartes
     const grid = document.createElement('div');
     grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
-    
+
     hotels.forEach(hotel => {
         const card = document.createElement('div');
         card.className = 'animate-fade-in';
         card.innerHTML = createHotelCard(hotel);
         grid.appendChild(card);
     });
-    
+
     container.innerHTML = '';
     container.appendChild(grid);
-    
+
     // Ajoute les event listeners sur les cartes
     attachCardEventListeners();
 }
@@ -340,10 +340,10 @@ function createHotelCard(hotel) {
     const rating = hotel.ratings?.averageRating || 0;
     const totalReviews = hotel.ratings?.totalRatings || 0;
     const usedCount = hotel.usageStats?.usedCount || 0;
-    
+
     // Récupère la première photo de l'hôtel
     const firstPhoto = hotel.photos && hotel.photos.length > 0 ? hotel.photos[0] : null;
-    
+
     // 🏨 Type d'hébergement avec icône et couleur
     const typeConfig = {
         'hotel': { icon: '🏨', label: 'Hôtel', color: 'bg-blue-100 text-blue-700' },
@@ -352,7 +352,7 @@ function createHotelCard(hotel) {
         'maison_hote': { icon: '🏠', label: 'Maison d\'hôtes', color: 'bg-orange-100 text-orange-700' }
     };
     const typeInfo = typeConfig[hotel.type] || typeConfig['hotel'];
-    
+
     // 🤝 Badges partenaires
     const partnerBadges = (hotel.partnerIds || []).map(partnerId => {
         const partner = allPartners.find(p => p.id === partnerId);
@@ -362,25 +362,25 @@ function createHotelCard(hotel) {
                     ${partner.badgeIcon || '🤝'} ${partner.name}
                 </span>`;
     }).join(' ');
-    
+
     // Génère les étoiles
-    const starsHTML = rating > 0 
+    const starsHTML = rating > 0
         ? `<div class="flex items-center space-x-1">
-            ${Array.from({length: 5}, (_, i) => 
-                `<i class="fas fa-star ${i < Math.round(rating) ? 'text-yellow-400' : 'text-gray-300'} text-sm"></i>`
-            ).join('')}
+            ${Array.from({ length: 5 }, (_, i) =>
+            `<i class="fas fa-star ${i < Math.round(rating) ? 'text-yellow-400' : 'text-gray-300'} text-sm"></i>`
+        ).join('')}
             <span class="text-sm font-semibold text-gray-700 ml-2">${rating.toFixed(1)}</span>
             <span class="text-xs text-gray-500">(${totalReviews})</span>
            </div>`
         : '<span class="text-sm text-gray-400">Aucune évaluation</span>';
-    
+
     // Image avec vraie photo ou placeholder
-    const imageHTML = firstPhoto 
+    const imageHTML = firstPhoto
         ? `<img src="${firstPhoto}" alt="${escapeHtml(hotel.name)}" class="w-full h-48 object-cover">`
         : `<div class="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
              <i class="fas fa-hotel text-white text-6xl opacity-30"></i>
            </div>`;
-    
+
     return `
         <div class="hotel-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200" data-hotel-id="${hotel.id}">
             <!-- Image Réelle ou Placeholder -->
@@ -464,11 +464,11 @@ function attachCardEventListeners() {
  */
 function openHotelModal(hotel = null) {
     const modal = document.getElementById('hotelModal');
-    
+
     // Reset le formulaire
     document.getElementById('hotelForm').reset();
     document.getElementById('hotelId').value = '';
-    
+
     if (hotel) {
         // Mode édition
         document.getElementById('hotelModalTitle').textContent = 'Modifier l\'hôtel';
@@ -483,7 +483,7 @@ function openHotelModal(hotel = null) {
         document.getElementById('googlePlaceId').value = hotel.googlePlaceId || '';
         document.getElementById('hotelType').value = hotel.type || 'hotel';
         document.getElementById('downloadGooglePhotos').checked = false;
-        
+
         // Charge les partenaires avec sélection
         renderPartnersCheckboxes(hotel.partnerIds || []);
     } else {
@@ -491,17 +491,17 @@ function openHotelModal(hotel = null) {
         document.getElementById('hotelModalTitle').textContent = 'Nouvel Hôtel';
         document.getElementById('hotelType').value = 'hotel';
         document.getElementById('downloadGooglePhotos').checked = true;
-        
+
         // Charge les partenaires sans sélection
         renderPartnersCheckboxes([]);
     }
-    
+
     // Affiche la modale
     modal.classList.remove('hidden');
     setTimeout(() => {
         modal.classList.add('opacity-100');
     }, 10);
-    
+
     // Active l'autocompletion RateHawk
     setupRatehawkAutocomplete();
 }
@@ -523,10 +523,10 @@ function closeHotelModal() {
 async function saveHotel() {
     const hotelId = document.getElementById('hotelId').value;
     const isEdit = !!hotelId;
-    
+
     // Récupère les partenaires sélectionnés
     const selectedPartners = Array.from(document.querySelectorAll('input[name="partners"]:checked')).map(cb => cb.value);
-    
+
     // Récupère les données du formulaire
     const hotelData = {
         name: document.getElementById('hotelName').value.trim(),
@@ -543,20 +543,20 @@ async function saveHotel() {
         },
         downloadGooglePhotos: document.getElementById('downloadGooglePhotos').checked
     };
-    
+
     // Validation
     if (!hotelData.name || !hotelData.city) {
         showToast('Veuillez remplir tous les champs obligatoires', 'error');
         return;
     }
-    
+
     try {
         // Désactive le bouton
         const btnSave = document.getElementById('btnSaveHotel');
         const originalHTML = btnSave.innerHTML;
         btnSave.disabled = true;
         btnSave.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Enregistrement...';
-        
+
         let response;
         if (isEdit) {
             // Modification
@@ -573,26 +573,26 @@ async function saveHotel() {
                 body: JSON.stringify(hotelData)
             });
         }
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast(isEdit ? 'Hôtel modifié avec succès' : 'Hôtel créé avec succès', 'success');
             closeHotelModal();
-            
+
             // Recharge les hôtels
             await loadHotels();
         } else {
             showToast(data.error || 'Erreur lors de l\'enregistrement', 'error');
         }
-        
+
         // Réactive le bouton
         btnSave.disabled = false;
         btnSave.innerHTML = originalHTML;
     } catch (error) {
         console.error('❌ Erreur sauvegarde hôtel:', error);
         showToast('Erreur lors de l\'enregistrement', 'error');
-        
+
         // Réactive le bouton
         const btnSave = document.getElementById('btnSaveHotel');
         btnSave.disabled = false;
@@ -612,14 +612,14 @@ async function viewHotelDetails(hotelId) {
     try {
         const response = await fetch(`/admin/api/hotels/${hotelId}`);
         const data = await response.json();
-        
+
         if (data.success) {
             const hotel = data.hotel;
             const reviews = hotel.reviews || [];
-            
+
             // Sauvegarde pour les boutons
             currentHotelDetails = hotel;
-            
+
             // Construit le HTML des détails
             const detailsHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -659,9 +659,9 @@ async function viewHotelDetails(hotelId) {
                             <div class="flex justify-between">
                                 <dt class="text-sm font-medium text-gray-600">Site web</dt>
                                 <dd class="text-sm text-blue-600">
-                                    ${hotel.contact?.website 
-                                        ? `<a href="${hotel.contact.website}" target="_blank" class="hover:underline">${hotel.contact.website}</a>` 
-                                        : '<span class="text-gray-900">Non renseigné</span>'}
+                                    ${hotel.contact?.website
+                    ? `<a href="${hotel.contact.website}" target="_blank" class="hover:underline">${hotel.contact.website}</a>`
+                    : '<span class="text-gray-900">Non renseigné</span>'}
                                 </dd>
                             </div>
                         </dl>
@@ -677,9 +677,9 @@ async function viewHotelDetails(hotelId) {
                             <div class="flex justify-between">
                                 <dt class="text-sm font-medium text-gray-600">Évaluation</dt>
                                 <dd class="text-sm text-gray-900">
-                                    ${hotel.ratings?.averageRating > 0 
-                                        ? `⭐ ${hotel.ratings.averageRating.toFixed(1)} / 5` 
-                                        : 'Aucune'}
+                                    ${hotel.ratings?.averageRating > 0
+                    ? `⭐ ${hotel.ratings.averageRating.toFixed(1)} / 5`
+                    : 'Aucune'}
                                 </dd>
                             </div>
                             <div class="flex justify-between">
@@ -719,10 +719,10 @@ async function viewHotelDetails(hotelId) {
                     </div>
                 ` : ''}
             `;
-            
+
             document.getElementById('hotelDetailsContent').innerHTML = detailsHTML;
             document.getElementById('detailsHotelName').textContent = hotel.name;
-            
+
             // Gère le bouton Galerie
             const galleryBtn = document.getElementById('viewGalleryBtn');
             if (hotel.photos && hotel.photos.length > 0) {
@@ -731,12 +731,12 @@ async function viewHotelDetails(hotelId) {
             } else {
                 galleryBtn.classList.add('hidden');
             }
-            
+
             // Gère le bouton Upload Photos (toujours visible)
             const uploadBtn = document.getElementById('uploadPhotosBtn');
             uploadBtn.classList.remove('hidden');
             uploadBtn.onclick = () => openUploadPhotosModal(hotel);
-            
+
             // Gère le bouton Modifier
             const editBtn = document.getElementById('editHotelBtn');
             editBtn.classList.remove('hidden');
@@ -744,7 +744,7 @@ async function viewHotelDetails(hotelId) {
                 closeDetailsModal();
                 editHotel(hotel.id);
             };
-            
+
             // Affiche la modale
             const modal = document.getElementById('hotelDetailsModal');
             modal.classList.remove('hidden');
@@ -787,23 +787,23 @@ function editHotel(hotelId) {
 async function deleteHotel(hotelId) {
     const hotel = allHotels.find(h => h.id === hotelId);
     if (!hotel) return;
-    
+
     const usedCount = hotel.usageStats?.usedCount || 0;
-    
+
     let confirmMessage = `Êtes-vous sûr de vouloir supprimer "${hotel.name}" ?`;
     if (usedCount > 0) {
         confirmMessage += `\n\nAttention : Cet hôtel est utilisé dans ${usedCount} voyage(s).`;
     }
-    
+
     if (!confirm(confirmMessage)) return;
-    
+
     try {
         const response = await fetch(`/admin/api/hotels/${hotelId}`, {
             method: 'DELETE'
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast('Hôtel supprimé avec succès', 'success');
             await loadHotels();
@@ -823,13 +823,13 @@ function openGalleryModal(hotel) {
     const modal = document.getElementById('galleryModal');
     const grid = document.getElementById('galleryGrid');
     const titleEl = document.getElementById('galleryHotelName');
-    
+
     // Met à jour le titre
     titleEl.textContent = `${hotel.name} - ${hotel.photos.length} photo${hotel.photos.length > 1 ? 's' : ''}`;
-    
+
     // Vide la grille
     grid.innerHTML = '';
-    
+
     // Ajoute chaque photo
     hotel.photos.forEach((photoUrl, index) => {
         const photoDiv = document.createElement('div');
@@ -842,15 +842,15 @@ function openGalleryModal(hotel) {
                 <i class="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></i>
             </div>
         `;
-        
+
         // Ouvre l'image en plein écran au clic
         photoDiv.addEventListener('click', () => {
             window.open(photoUrl, '_blank');
         });
-        
+
         grid.appendChild(photoDiv);
     });
-    
+
     // Affiche la modale
     modal.classList.remove('hidden');
 }
@@ -875,31 +875,31 @@ let currentUploadHotelId = null;
 function openUploadPhotosModal(hotel) {
     currentUploadHotelId = hotel.id;
     selectedFiles = [];
-    
+
     // Met à jour le nom de l'hôtel
     document.getElementById('uploadHotelName').textContent = hotel.name;
-    
+
     // Reset l'interface
     document.getElementById('photoFiles').value = '';
     document.getElementById('photosPreview').classList.add('hidden');
     document.getElementById('uploadProgress').classList.add('hidden');
     document.getElementById('btnUploadPhotos').disabled = true;
     document.getElementById('previewGrid').innerHTML = '';
-    
+
     // Affiche la modale
     const modal = document.getElementById('uploadPhotosModal');
     modal.classList.remove('hidden');
-    
+
     // ✨ SUPPORT COPIER-COLLER (Cmd+V / Ctrl+V)
     const pasteHandler = (e) => {
         // Récupère les items du clipboard
         const items = e.clipboardData?.items;
         if (!items) return;
-        
+
         const files = [];
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
-            
+
             // Vérifie si c'est une image
             if (item.type.indexOf('image') !== -1) {
                 const file = item.getAsFile();
@@ -908,7 +908,7 @@ function openUploadPhotosModal(hotel) {
                 }
             }
         }
-        
+
         if (files.length > 0) {
             // Crée un événement fictif pour réutiliser handlePhotosSelected
             const fakeEvent = {
@@ -918,10 +918,10 @@ function openUploadPhotosModal(hotel) {
             showToast(`📋 ${files.length} image(s) collée(s) !`, 'success');
         }
     };
-    
+
     // Ajoute l'event listener
     document.addEventListener('paste', pasteHandler);
-    
+
     // Stocke la référence pour pouvoir la retirer plus tard
     modal.dataset.pasteHandler = 'active';
     modal._pasteHandler = pasteHandler;
@@ -935,7 +935,7 @@ function closeUploadPhotosModal() {
     modal.classList.add('hidden');
     selectedFiles = [];
     currentUploadHotelId = null;
-    
+
     // ✨ Retire l'event listener paste
     if (modal._pasteHandler) {
         document.removeEventListener('paste', modal._pasteHandler);
@@ -949,7 +949,7 @@ function closeUploadPhotosModal() {
  */
 function handlePhotosSelected(event) {
     const files = Array.from(event.target.files);
-    
+
     // Validation
     const validFiles = [];
     for (const file of files) {
@@ -958,23 +958,23 @@ function handlePhotosSelected(event) {
             showToast(`${file.name}: Format non supporté (JPG, PNG uniquement)`, 'error');
             continue;
         }
-        
+
         // Vérifie la taille (5MB max)
         if (file.size > 5 * 1024 * 1024) {
             showToast(`${file.name}: Fichier trop volumineux (max 5MB)`, 'error');
             continue;
         }
-        
+
         validFiles.push(file);
     }
-    
+
     if (validFiles.length === 0) {
         return;
     }
-    
+
     selectedFiles = validFiles;
     displayPhotosPreview();
-    
+
     // Active le bouton upload
     document.getElementById('btnUploadPhotos').disabled = false;
 }
@@ -986,10 +986,10 @@ function displayPhotosPreview() {
     const previewDiv = document.getElementById('photosPreview');
     const grid = document.getElementById('previewGrid');
     const countSpan = document.getElementById('photoCount');
-    
+
     countSpan.textContent = selectedFiles.length;
     grid.innerHTML = '';
-    
+
     selectedFiles.forEach((file, index) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -1013,7 +1013,7 @@ function displayPhotosPreview() {
         };
         reader.readAsDataURL(file);
     });
-    
+
     previewDiv.classList.remove('hidden');
 }
 
@@ -1022,7 +1022,7 @@ function displayPhotosPreview() {
  */
 function removeSelectedPhoto(index) {
     selectedFiles.splice(index, 1);
-    
+
     if (selectedFiles.length === 0) {
         document.getElementById('photosPreview').classList.add('hidden');
         document.getElementById('btnUploadPhotos').disabled = true;
@@ -1038,24 +1038,24 @@ async function uploadSelectedPhotos() {
     if (!currentUploadHotelId || selectedFiles.length === 0) {
         return;
     }
-    
+
     // Prépare le FormData
     const formData = new FormData();
     selectedFiles.forEach(file => {
         formData.append('photos', file);
     });
-    
+
     // Désactive le bouton et affiche la progress
     const btnUpload = document.getElementById('btnUploadPhotos');
     const originalHTML = btnUpload.innerHTML;
     btnUpload.disabled = true;
     btnUpload.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Upload...';
-    
+
     const progressDiv = document.getElementById('uploadProgress');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
     progressDiv.classList.remove('hidden');
-    
+
     try {
         // Simule la progression (en vrai, il faudrait XMLHttpRequest pour avoir la vraie progression)
         let progress = 0;
@@ -1067,29 +1067,29 @@ async function uploadSelectedPhotos() {
             progressBar.style.width = `${progress}%`;
             progressText.textContent = `${progress}%`;
         }, 200);
-        
+
         // Fait l'upload
         const response = await fetch(`/admin/api/hotels/${currentUploadHotelId}/upload-photos`, {
             method: 'POST',
             body: formData
         });
-        
+
         clearInterval(progressInterval);
         progressBar.style.width = '100%';
         progressText.textContent = '100%';
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast(`✅ ${data.uploaded_count} photo(s) uploadée(s) avec succès !`, 'success');
-            
+
             // Recharge les hôtels
             await loadHotels();
-            
+
             // Ferme la modale d'upload
             setTimeout(() => {
                 closeUploadPhotosModal();
-                
+
                 // Raffraîchit les détails si ouverts
                 if (currentHotelDetails && currentHotelDetails.id === currentUploadHotelId) {
                     viewHotelDetails(currentUploadHotelId);
@@ -1101,7 +1101,7 @@ async function uploadSelectedPhotos() {
     } catch (error) {
         console.error('❌ Erreur upload photos:', error);
         showToast('Erreur lors de l\'upload des photos', 'error');
-        
+
         // Réactive le bouton
         btnUpload.disabled = false;
         btnUpload.innerHTML = originalHTML;
@@ -1121,17 +1121,16 @@ function showToast(message, type = 'success') {
         toast.className = 'fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300';
         document.body.appendChild(toast);
     }
-    
+
     // Style selon le type
-    toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300 ${
-        type === 'success' ? 'bg-green-500 text-white' : 
-        type === 'error' ? 'bg-red-500 text-white' : 
-        'bg-yellow-500 text-white'
-    }`;
-    
+    toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300 ${type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+            'bg-yellow-500 text-white'
+        }`;
+
     toast.textContent = message;
     toast.style.opacity = '1';
-    
+
     // Cache après 3s
     setTimeout(() => {
         toast.style.opacity = '0';
@@ -1159,7 +1158,7 @@ let selectedExcelFile = null;
  */
 function openImportModal() {
     const modal = document.getElementById('importModal');
-    
+
     // Reset
     selectedExcelFile = null;
     document.getElementById('excelFile').value = '';
@@ -1170,18 +1169,18 @@ function openImportModal() {
     document.getElementById('importProgress').classList.add('hidden');
     document.getElementById('importReport').classList.add('hidden');
     document.getElementById('btnStartImport').disabled = true;
-    
+
     // Charge les partenaires dans le select
     const select = document.getElementById('importPartner');
     select.innerHTML = '<option value="">Sélectionnez un partenaire...</option>';
-    
+
     allPartners.forEach(partner => {
         const option = document.createElement('option');
         option.value = partner.id;
         option.textContent = `${partner.badgeIcon || '🤝'} ${partner.name}`;
         select.appendChild(option);
     });
-    
+
     // Affiche la modale
     modal.classList.remove('hidden');
 }
@@ -1200,23 +1199,23 @@ function closeImportModal() {
  */
 function handleExcelFileSelected(event) {
     const file = event.target.files[0];
-    
+
     if (!file) return;
-    
+
     // Vérifie l'extension
     if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
         showToast('Format de fichier invalide (xlsx, xls uniquement)', 'error');
         return;
     }
-    
+
     // Sauvegarde le fichier
     selectedExcelFile = file;
-    
+
     // Affiche l'aperçu
     document.getElementById('fileName').textContent = file.name;
     document.getElementById('fileInfo').textContent = `Taille: ${(file.size / 1024).toFixed(1)} Ko`;
     document.getElementById('filePreview').classList.remove('hidden');
-    
+
     // Active le bouton si un partenaire est sélectionné
     checkImportReadiness();
 }
@@ -1237,7 +1236,7 @@ function removeExcelFile() {
 function checkImportReadiness() {
     const partnerId = document.getElementById('importPartner').value;
     const btnStart = document.getElementById('btnStartImport');
-    
+
     btnStart.disabled = !(selectedExcelFile && partnerId);
 }
 
@@ -1257,118 +1256,105 @@ async function startImport() {
         showToast('Aucun fichier sélectionné', 'error');
         return;
     }
-    
+
     const partnerId = document.getElementById('importPartner').value;
     if (!partnerId) {
         showToast('Veuillez sélectionner un partenaire', 'error');
         return;
     }
-    
+
     // Prépare le FormData
     const formData = new FormData();
     formData.append('file', selectedExcelFile);
     formData.append('partnerId', partnerId);
     formData.append('downloadPhotos', document.getElementById('importDownloadPhotos').checked);
     formData.append('skipDuplicates', document.getElementById('importSkipDuplicates').checked);
-    
+
     // Désactive le bouton
     const btnStart = document.getElementById('btnStartImport');
     const originalHTML = btnStart.innerHTML;
     btnStart.disabled = true;
     btnStart.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
-    
+
     // Affiche la barre de progression
     const progressDiv = document.getElementById('importProgress');
     const progressBar = document.getElementById('importProgressBar');
     const progressText = document.getElementById('importProgressText');
     const progressDetail = document.getElementById('importProgressDetail');
-    
+
     progressDiv.classList.remove('hidden');
     progressBar.style.width = '0%';
     progressText.textContent = '0%';
     progressDetail.textContent = 'Envoi du fichier...';
-    
+
     try {
-        // Simule la progression pendant l'upload
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            progress += 5;
-            if (progress > 90) {
-                clearInterval(progressInterval);
-            }
-            progressBar.style.width = `${progress}%`;
-            progressText.textContent = `${progress}%`;
-            
-            if (progress < 20) {
-                progressDetail.textContent = 'Lecture du fichier Excel...';
-            } else if (progress < 50) {
-                progressDetail.textContent = 'Analyse avec Gemini AI...';
-            } else if (progress < 80) {
-                progressDetail.textContent = 'Importation des hôtels...';
-            } else {
-                progressDetail.textContent = 'Finalisation...';
-            }
-        }, 200);
-        
-        // Appel API
+        // Appel API avec support du streaming
         const response = await fetch('/admin/api/hotels/import-excel', {
             method: 'POST',
             body: formData
         });
-        
-        clearInterval(progressInterval);
-        progressBar.style.width = '100%';
-        progressText.textContent = '100%';
-        progressDetail.textContent = 'Import terminé !';
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Masque la barre de progression
-            setTimeout(() => {
-                progressDiv.classList.add('hidden');
-            }, 500);
-            
-            // Affiche le rapport
-            document.getElementById('reportImported').textContent = data.imported;
-            document.getElementById('reportSkipped').textContent = data.skipped;
-            document.getElementById('reportErrors').textContent = data.errors;
-            
-            // Affiche les détails des erreurs si présents
-            const reportDetails = document.getElementById('reportDetails');
-            if (data.error_details && data.error_details.length > 0) {
-                reportDetails.innerHTML = `
-                    <h5 class="font-semibold text-gray-900 mb-2">Détails des erreurs:</h5>
-                    <ul class="text-sm text-red-600 space-y-1">
-                        ${data.error_details.map(err => `<li>• ${err}</li>`).join('')}
-                    </ul>
-                `;
-            } else {
-                reportDetails.innerHTML = '';
-            }
-            
-            document.getElementById('importReport').classList.remove('hidden');
-            
-            showToast(`✅ Import terminé: ${data.imported} importés, ${data.skipped} ignorés, ${data.errors} erreurs`, 'success');
-            
-            // Recharge les hôtels après 2 secondes
-            setTimeout(async () => {
-                await loadHotels();
-                // Ferme la modale après 3 secondes
-                setTimeout(() => {
-                    closeImportModal();
-                }, 3000);
-            }, 2000);
-        } else {
-            throw new Error(data.error || 'Erreur lors de l\'import');
+
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
         }
-        
+
+        // Lecture du stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Garde le reste pour la prochaine itération
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                try {
+                    const data = JSON.parse(line);
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    if (data.progress) {
+                        progressBar.style.width = `${data.progress}%`;
+                        progressText.textContent = `${data.progress}%`;
+                        if (data.message) {
+                            progressDetail.textContent = data.message;
+                        }
+                    }
+
+                    if (data.result) {
+                        // Succès final
+                        progressBar.style.width = '100%';
+                        progressText.textContent = '100%';
+                        progressDetail.textContent = 'Import terminé !';
+
+                        showToast(`Import réussi: ${data.result.imported} hôtels importés`, 'success');
+
+                        // Ferme la modale et recharge
+                        setTimeout(() => {
+                            closeImportModal();
+                            loadHotels();
+                        }, 1000);
+                    }
+
+                } catch (e) {
+                    console.warn('Erreur parsing ligne stream:', line, e);
+                }
+            }
+        }
+
     } catch (error) {
         console.error('❌ Erreur import:', error);
-        showToast(`Erreur lors de l'import: ${error.message}`, 'error');
-        
-        // Masque la progression et réactive le bouton
         progressDiv.classList.add('hidden');
+        showToast(error.message || 'Erreur lors de l\'import', 'error');
+    } finally {
         btnStart.disabled = false;
         btnStart.innerHTML = originalHTML;
     }

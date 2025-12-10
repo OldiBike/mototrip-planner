@@ -1,0 +1,258 @@
+{% extends "public/base.html" %}
+
+{% block page_title %}Réserver {{ trip.title }} - OldiBike{% endblock %}
+
+{% block page_content %}
+<div class="min-h-screen bg-gray-50 py-12">
+    <div class="container mx-auto px-4 max-w-4xl">
+
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Réserver votre Aventure</h1>
+            <p class="text-xl text-gray-600">{{ trip.title }}</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-8">
+
+                <!-- STEPS -->
+                <div class="flex justify-center mb-8">
+                    <div class="flex items-center space-x-4">
+                        <span
+                            class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold">1</span>
+                        <span class="text-gray-900 font-medium">Type de réservation</span>
+                        <div class="w-16 h-px bg-gray-300"></div>
+                        <span
+                            class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 font-bold"
+                            id="step-2-indicator">2</span>
+                        <span class="text-gray-500" id="step-2-label">Détails</span>
+                    </div>
+                </div>
+
+                <!-- STEP 1: CHOICE -->
+                <div id="step-1" class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Comment souhaitez-vous voyager ?</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Solo/Couple -->
+                        <div class="border-2 border-transparent hover:border-blue-500 rounded-xl p-6 bg-gray-50 cursor-pointer transition-all hover:shadow-md"
+                            onclick="selectType('individual')">
+                            <div class="text-center">
+                                <span class="text-4xl mb-4 block">🏍️</span>
+                                <h3 class="text-xl font-bold text-gray-900 mb-2">Solo / Duo</h3>
+                                <p class="text-sm text-gray-600">Je réserve pour moi (et mon passager).</p>
+                            </div>
+                        </div>
+
+                        <!-- Leader -->
+                        <div class="border-2 border-transparent hover:border-indigo-500 rounded-xl p-6 bg-gray-50 cursor-pointer transition-all hover:shadow-md"
+                            onclick="selectType('group_leader')">
+                            <div class="text-center">
+                                <span class="text-4xl mb-4 block">👑</span>
+                                <h3 class="text-xl font-bold text-gray-900 mb-2">Créer un Groupe</h3>
+                                <p class="text-sm text-gray-600">Je suis l'organisateur. J'invite mes amis.</p>
+                            </div>
+                        </div>
+
+                        <!-- Joiner -->
+                        <div class="border-2 border-transparent hover:border-green-500 rounded-xl p-6 bg-gray-50 cursor-pointer transition-all hover:shadow-md"
+                            onclick="selectType('join_group')">
+                            <div class="text-center">
+                                <span class="text-4xl mb-4 block">🔗</span>
+                                <h3 class="text-xl font-bold text-gray-900 mb-2">Rejoindre</h3>
+                                <p class="text-sm text-gray-600">J'ai un code d'invitation.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: FORMS -->
+                <div id="step-2" class="hidden">
+                    <button onclick="backToStep1()"
+                        class="mb-6 text-gray-500 hover:text-gray-700 flex items-center text-sm">
+                        <i class="fas fa-arrow-left mr-2"></i> Retour
+                    </button>
+
+                    <!-- Form Individual -->
+                    <form id="form-individual" class="space-y-6 hidden booking-form"
+                        onsubmit="submitBooking(event, 'individual')">
+                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start">
+                            <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+                            <div>
+                                <h4 class="font-bold text-blue-800">Réservation Solo / Duo</h4>
+                                <p class="text-sm text-blue-600">Vous payez la totalité (ou l'acompte) maintenant.</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de participants</label>
+                            <select name="quantity" class="w-full px-4 py-2 border rounded-md">
+                                <option value="1">1 Personne</option>
+                                <option value="2">2 Personnes</option>
+                                <option value="3">3 Personnes</option>
+                                <option value="4">4 Personnes</option>
+                            </select>
+                        </div>
+
+                        <!-- Common Fields -->
+                        {% include 'public/components/participant_fields.html' %}
+
+                        <button type="submit"
+                            class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition">
+                            Continuer vers le paiement
+                        </button>
+                    </form>
+
+                    <!-- Form Group Leader -->
+                    <form id="form-group-leader" class="space-y-6 hidden booking-form"
+                        onsubmit="submitBooking(event, 'group_leader')">
+                        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex items-start">
+                            <i class="fas fa-crown text-indigo-500 mt-1 mr-3"></i>
+                            <div>
+                                <h4 class="font-bold text-indigo-800">Nouveau Groupe</h4>
+                                <p class="text-sm text-indigo-600">Vous recevrez un <strong>Code Groupe</strong> à
+                                    partager après le paiement.</p>
+                            </div>
+                        </div>
+
+                        <!-- Payment Mode Choice -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Comment payez-vous ?</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label
+                                    class="border p-4 rounded-lg cursor-pointer hover:bg-gray-50 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+                                    <input type="radio" name="payment_mode" value="all" class="mr-2"
+                                        onchange="togglePaxInput(true)">
+                                    <span class="font-semibold">Je paye pour tout le monde</span>
+                                    <p class="text-xs text-gray-500 mt-1">Vous avancez les frais pour tous les
+                                        participants.</p>
+                                </label>
+                                <label
+                                    class="border p-4 rounded-lg cursor-pointer hover:bg-gray-50 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+                                    <input type="radio" name="payment_mode" value="split" class="mr-2" checked
+                                        onchange="togglePaxInput(false)">
+                                    <span class="font-semibold">Chacun paie sa part</span>
+                                    <p class="text-xs text-gray-500 mt-1">Vous payez votre part, les autres utiliseront
+                                        le Code Groupe.</p>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="pax-count-container" class="hidden mt-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre total de participants
+                                (vous inclus)</label>
+                            <input type="number" name="total_pax" min="2" max="20"
+                                class="w-full px-4 py-2 border rounded-md">
+                        </div>
+
+                        <!-- Leader Details -->
+                        <div class="mt-6">
+                            <h4 class="font-semibold text-gray-800 mb-4 border-b pb-2">Vos informations (Leader)</h4>
+                            {% include 'public/components/participant_fields.html' %}
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition mt-6">
+                            Créer le Groupe & Payer
+                        </button>
+                    </form>
+
+                    <!-- Form Join Group -->
+                    <form id="form-join-group" class="space-y-6 hidden booking-form"
+                        onsubmit="submitBooking(event, 'join_group')">
+                        <div class="bg-green-50 p-4 rounded-lg border border-green-100 flex items-start">
+                            <i class="fas fa-users text-green-500 mt-1 mr-3"></i>
+                            <div>
+                                <h4 class="font-bold text-green-800">Rejoindre un Groupe</h4>
+                                <p class="text-sm text-green-600">Entrez le code fourni par votre organisateur.</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Code Groupe</label>
+                            <input type="text" name="join_code" required
+                                class="w-full px-4 py-2 border rounded-md uppercase font-mono text-lg tracking-wider"
+                                placeholder="EX: VOYAGE-1234">
+                        </div>
+
+                        <!-- Validate Button first? Or just submit to next step -->
+                        <button type="submit"
+                            class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition">
+                            Valider le code
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const tripSlug = "{{ trip.slug }}";
+
+    function selectType(type) {
+        document.getElementById('step-1').classList.add('hidden');
+        document.getElementById('step-2').classList.remove('hidden');
+        document.getElementById('step-2-indicator').classList.remove('bg-gray-200', 'text-gray-600');
+        document.getElementById('step-2-indicator').classList.add('bg-blue-600', 'text-white');
+
+        // Hide all forms
+        document.querySelectorAll('.booking-form').forEach(f => f.classList.add('hidden'));
+
+        // Show selected form
+        document.getElementById('form-' + type.replace('_', '-')).classList.remove('hidden');
+    }
+
+    function backToStep1() {
+        document.getElementById('step-2').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+        document.getElementById('step-2-indicator').classList.add('bg-gray-200', 'text-gray-600');
+        document.getElementById('step-2-indicator').classList.remove('bg-blue-600', 'text-white');
+    }
+
+    function togglePaxInput(show) {
+        const el = document.getElementById('pax-count-container');
+        if (show) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+    }
+
+    async function submitBooking(event, type) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        data.booking_type = type;
+
+        // Disable button
+        const btn = form.querySelector('button[type="submit"]');
+        const oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Traitement en cours...';
+
+        try {
+            const response = await fetch(`/voyage/${tripSlug}/checkout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.checkout_url) {
+                window.location.href = result.checkout_url;
+            } else if (result.join_redirect) {
+                window.location.href = result.join_redirect; // For join group flow -> payment of share
+            } else {
+                alert('Erreur: ' + (result.error || 'Inconnue'));
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Une erreur est survenue.');
+            btn.disabled = false;
+            btn.textContent = oldText;
+        }
+    }
+</script>
+{% endblock %}

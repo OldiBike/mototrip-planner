@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Builder de Voyage - MotoTrip Planner{% endblock %}
+
+{% block extra_head_scripts %}
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places"></script>
+<!-- Initialisation globale du tripId pour le JS -->
+<script>
+    window.TRIP_ID = "{{ trip_id }}";
+</script>
+{% endblock %}
+
+{% block content %}
+<div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+    <!-- Header Builder -->
+    <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-4">
+                <a href="{{ url_for('admin.dashboard') }}"
+                    class="text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Retour Dashboard
+                </a>
+                <h2 class="text-2xl font-semibold">Construction : <span id="construction-trip-name"
+                        class="text-blue-600">Chargement...</span></h2>
+            </div>
+            <div class="flex gap-2">
+                <button id="publish-trip-btn-construction"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium hidden">
+                    <i class="fas fa-globe mr-2"></i>Publier
+                </button>
+                <button id="edit-publication-btn-construction"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium hidden">
+                    <i class="fas fa-edit mr-2"></i>Modifier
+                </button>
+                <button id="unpublish-trip-btn-construction"
+                    class="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium hidden">
+                    <i class="fas fa-eye-slash mr-2"></i>Dépublier
+                </button>
+                <button id="add-day-modal-btn"
+                    class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
+                    <i class="fas fa-plus mr-2"></i>Ajouter une étape
+                </button>
+                <button id="manage-media-btn"
+                    class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
+                    <i class="fas fa-images mr-2"></i>Médias
+                </button>
+            </div>
+        </div>
+
+        <!-- URL du voyage publié -->
+        <div id="published-trip-url-container" class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-6 hidden">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-indigo-700">Lien public :</span>
+                <a id="published-trip-link" href="#" target="_blank"
+                    class="text-indigo-600 hover:text-indigo-800 hover:underline text-sm truncate flex-1">
+                    <!-- URL injectée par JS -->
+                </a>
+                <button onclick="copyTripUrl()" class="text-indigo-500 hover:text-indigo-700" title="Copier le lien">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modern Cost Calculator -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+
+            <!-- COUTS DOUBLE (Avec distinction Chambre / Pers) -->
+            <div
+                class="md:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110">
+                </div>
+                <h3
+                    class="flex items-center text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 relative z-10">
+                    <i class="fas fa-user-friends mr-2 text-blue-400"></i> Double (Occup. 2)
+                </h3>
+
+                <div class="space-y-4 relative z-10">
+                    <!-- Coûts -->
+                    <div>
+                        <div class="text-xs font-bold text-gray-400 uppercase mb-1">Coût Réel</div>
+                        <div class="flex justify-between items-baseline">
+                            <div>
+                                <span class="text-xs text-gray-400">Total :</span>
+                                <span id="total-double" class="font-bold text-gray-700">0.00€</span>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400">/ Pers :</span>
+                                <span id="total-double-pp" class="font-bold text-blue-600">0.00€</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full h-px bg-gray-100"></div>
+                    <!-- Vente -->
+                    <div>
+                        <div class="text-xs font-bold text-gray-400 uppercase mb-1">Prix Vente</div>
+                        <div class="flex justify-between items-baseline">
+                            <div>
+                                <span class="text-xs text-gray-400">Total :</span>
+                                <span id="sale-double" class="font-bold text-gray-700">0.00€</span>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400">/ Pers :</span>
+                                <span id="sale-double-pp" class="font-bold text-blue-600">0.00€</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COUTS SOLO (Room Only focus) -->
+            <div id="pricing-card-solo"
+                class="md:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group hidden">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110">
+                </div>
+                <h3
+                    class="flex items-center text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 relative z-10">
+                    <i class="fas fa-user mr-2 text-purple-400"></i> Solo (Occup. 1)
+                </h3>
+
+                <div class="space-y-4 relative z-10">
+                    <div class="flex justify-between items-end">
+                        <span class="text-sm text-gray-400">Coût réel Chambre</span>
+                        <span id="total-solo" class="text-xl font-bold text-gray-700">0.00€</span>
+                    </div>
+                    <div class="w-full h-px bg-gray-100"></div>
+                    <div class="flex justify-between items-end">
+                        <span class="text-sm text-gray-400">Prix vente Chambre</span>
+                        <span id="sale-solo" class="text-2xl font-bold text-purple-600">0.00€</span>
+                    </div>
+                    <div class="pt-2 text-xs text-gray-400 text-right italic">
+                        (Prix unique pour la chambre)
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIMULATION & PRICING CONTROL -->
+            <div class="md:col-span-4 space-y-4">
+
+                <!-- Input Prix Cible -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Prix vente cible / pers
+                        (Double)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">€</span>
+                        <input type="number" id="sale-price-pp-input" min="0" step="0.01" placeholder="0.00"
+                            class="w-full pl-8 pr-4 py-2 bg-gray-50 text-gray-900 rounded-lg font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:outline-none border border-gray-200">
+                    </div>
+                </div>
+
+                <!-- Simulation Box -->
+                <div
+                    class="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-lg p-5 text-white relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+
+                    <h3
+                        class="flex items-center text-sm font-bold text-blue-100 uppercase tracking-wider mb-3 relative z-10">
+                        <i class="fas fa-calculator mr-2"></i> Simulation Marge
+                    </h3>
+
+                    <div class="relative z-10 grid grid-cols-2 gap-3 mb-4">
+                        <div>
+                            <label class="block text-[10px] text-blue-200 mb-1">Chambres Doubles</label>
+                            <input type="number" id="sim-nb-double" value="1" min="0"
+                                class="w-full px-2 py-1 bg-white/20 border border-white/30 rounded text-center font-bold text-white focus:outline-none focus:bg-white/30">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-blue-200 mb-1">Chambres Solos</label>
+                            <input type="number" id="sim-nb-solo" value="0" min="0"
+                                class="w-full px-2 py-1 bg-white/20 border border-white/30 rounded text-center font-bold text-white focus:outline-none focus:bg-white/30">
+                        </div>
+                    </div>
+
+                    <div class="relative z-10 pt-3 border-t border-white/20">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-xs text-blue-100">Total Ventes</span>
+                            <span id="sim-total-sales" class="font-bold">0.00€</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-xs text-blue-100">Total Coûts</span>
+                            <span id="sim-total-costs" class="font-bold text-blue-200">0.00€</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-white/20 rounded p-2">
+                            <span class="text-sm font-bold text-white">Marge Nette</span>
+                            <div class="text-right">
+                                <span id="sim-total-margin" class="block text-lg font-bold text-green-300">0.00€</span>
+                                <span id="sim-margin-percent" class="block text-[10px] text-blue-200">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Carte du voyage -->
+    <div id="global-trip-map-section" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 hidden">
+        <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
+            <h3 class="font-semibold text-gray-700 flex items-center">
+                <i class="fas fa-map-marked-alt mr-2 text-indigo-600"></i>Carte du voyage
+            </h3>
+            <div id="trip-map-legend" class="flex flex-wrap gap-2 text-xs">
+                <!-- Légende injectée par JS -->
+            </div>
+        </div>
+        <div id="trip-map-container" class="w-full h-96 rounded-b-lg z-0 relative"></div>
+    </div>
+
+    <div id="days-list" class="space-y-4">
+        <!-- Les étapes du voyage seront injectées ici par JavaScript -->
+    </div>
+
+    <!-- Période Recommandée -->
+    <div class="mt-8 bg-white p-6 rounded-lg shadow-md border-t-4 border-indigo-500">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-calendar-alt mr-2"></i>Période Recommandée
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">
+            Indiquez la période idéale pour effectuer ce voyage (ex: ouverture des cols).
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="recommended-start-input" class="block text-sm font-medium text-gray-700">Date de
+                    début</label>
+                <input type="date" id="recommended-start-input"
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div>
+                <label for="recommended-end-input" class="block text-sm font-medium text-gray-700">Date de
+                    fin</label>
+                <input type="date" id="recommended-end-input"
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Toast Notifications -->
+<div id="toast"
+    class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg hidden opacity-0 transition-opacity z-50">
+    <div class="flex items-center">
+        <i class="fas fa-check-circle mr-2"></i>
+        <span id="toast-message"></span>
+    </div>
+</div>
+
+<!-- Modales -->
+{% include 'admin/modals.html' %}
+
+<!-- Modale Galerie Photos Étape (Requis pour le builder) -->
+<div id="day-gallery-modal"
+    class="modal fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 hidden z-50">
+    <div class="relative w-full max-w-6xl h-[90vh] flex flex-col">
+        <!-- En-tête -->
+        <div class="flex justify-between items-center mb-4 shrink-0">
+            <h3 class="text-2xl font-semibold text-white flex items-center">
+                <i class="fas fa-images mr-3 text-purple-400"></i>
+                <span id="day-gallery-title">Galerie de l'étape</span>
+            </h3>
+            <button id="close-day-gallery-btn" class="text-white hover:text-gray-300 text-3xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Onglets -->
+        <div class="flex gap-2 mb-4 shrink-0 overflow-x-auto">
+            <button id="tab-gallery-hotel" onclick="switchGalleryTab('hotel')"
+                class="gallery-tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors whitespace-nowrap">
+                <i class="fas fa-hotel mr-2"></i>Hôtel <span id="count-gallery-hotel" class="ml-1 opacity-75">(0)</span>
+            </button>
+            <button id="tab-gallery-poi" onclick="switchGalleryTab('poi')"
+                class="gallery-tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors whitespace-nowrap">
+                <i class="fas fa-map-marked-alt mr-2"></i>Points d'Intérêt <span id="count-gallery-poi"
+                    class="ml-1 opacity-75">(0)</span>
+            </button>
+            <button id="tab-gallery-restaurant" onclick="switchGalleryTab('restaurant')"
+                class="gallery-tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors whitespace-nowrap">
+                <i class="fas fa-utensils mr-2"></i>Restaurants <span id="count-gallery-restaurant"
+                    class="ml-1 opacity-75">(0)</span>
+            </button>
+            <button id="tab-gallery-media" onclick="switchGalleryTab('media')"
+                class="gallery-tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors whitespace-nowrap">
+                <i class="fas fa-photo-video mr-2"></i>Média Global <span id="count-gallery-media"
+                    class="ml-1 opacity-75">(0)</span>
+            </button>
+        </div>
+
+        <!-- Zone Image principale -->
+        <div class="flex-1 relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center min-h-0">
+            <img id="day-gallery-main-img" src="" alt="Photo" class="max-w-full max-h-full object-contain">
+
+            <div id="day-gallery-empty" class="hidden text-center text-gray-500">
+                <i class="fas fa-image text-5xl mb-4 opacity-50"></i>
+                <p>Aucune photo dans cette catégorie</p>
+            </div>
+
+            <!-- Boutons Navigation -->
+            <button id="day-gallery-prev"
+                class="absolute left-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="day-gallery-next"
+                class="absolute right-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+
+            <!-- Légende -->
+            <div id="day-gallery-caption"
+                class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-white px-6 py-2 rounded-full text-sm max-w-md truncate text-center">
+                Titre de la photo
+            </div>
+
+            <!-- Compteur -->
+            <div
+                class="absolute top-4 right-4 bg-black bg-opacity-75 text-white px-3 py-1 rounded-md text-xs font-mono">
+                <span id="day-gallery-counter">0 / 0</span>
+            </div>
+        </div>
+
+        <!-- Miniatures -->
+        <div id="day-gallery-thumbnails" class="flex gap-2 mt-4 shrink-0 overflow-x-auto pb-2 h-20">
+            <!-- Les miniatures seront injectées ici -->
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/hotel_selector.js') }}"></script>
+<!-- Nouveau JS dédié builder -->
+<script src="{{ url_for('static', filename='js/trip_builder.js') }}"></script>
+{% endblock %}

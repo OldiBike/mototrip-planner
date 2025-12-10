@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+
+{% block title %}Publier {{ trip.name }} - MotoTrip Planner{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-100 pb-20">
+    <!-- Top Navigation sticky -->
+    <div class="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        <div class="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="{{ url_for('admin.dashboard') }}"
+                    class="text-gray-500 hover:text-gray-900 transition-colors flex items-center font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>Dashboard
+                </a>
+                <span class="text-gray-300">|</span>
+                <h1 class="text-xl font-bold text-gray-900 truncate max-w-xs md:max-w-md">Publier : {{ trip.name }}</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="history.back()"
+                    class="text-sm text-gray-600 hover:text-gray-900 px-3 py-2">
+                    Annuler
+                </button>
+                <button onclick="document.getElementById('publishForm').submit()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-6 rounded-full shadow-md transition-transform hover:scale-105 flex items-center">
+                    <i class="fas fa-rocket mr-2"></i> Publier
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl mt-6">
+        <form id="publishForm" action="{{ url_for('admin.publish_trip_action', trip_id=trip.id) }}" method="POST"
+            enctype="multipart/form-data">
+            <input type="hidden" name="current_header_image" value="{{ trip.headerImage or trip.coverImage }}">
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+                <!-- MAIN CONTENT (Left Column) -->
+                <div class="lg:col-span-8 space-y-8">
+
+                    <!-- 1. Header Identity -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h2 class="text-lg font-bold text-gray-800"><i class="fas fa-image text-blue-500 mr-2"></i>
+                                Identité Visuelle</h2>
+                        </div>
+                        <div class="p-6">
+                            <!-- Title Input -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Titre Marketing</label>
+                                <input type="text" name="title" value="{{ trip.name }}" required
+                                    class="w-full text-2xl font-bold px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder-gray-300"
+                                    placeholder="Ex: La Grande Traversée des Alpes">
+                            </div>
+
+                            <!-- Header Image -->
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-sm font-semibold text-gray-700">Image de couverture
+                                        (Hero)</label>
+                                    <div class="flex bg-gray-100 p-1 rounded-lg">
+                                        <label
+                                            class="cursor-pointer px-3 py-1 rounded-md text-sm font-medium transition-colors has-[:checked]:bg-white has-[:checked]:shadow-sm has-[:checked]:text-blue-600 hover:text-gray-900 text-gray-500">
+                                            <input type="radio" name="header_source" value="upload" checked
+                                                onclick="toggleHeaderSource('upload')" class="sr-only">
+                                            Upload
+                                        </label>
+                                        <label
+                                            class="cursor-pointer px-3 py-1 rounded-md text-sm font-medium transition-colors has-[:checked]:bg-white has-[:checked]:shadow-sm has-[:checked]:text-blue-600 hover:text-gray-900 text-gray-500">
+                                            <input type="radio" name="header_source" value="gallery"
+                                                onclick="toggleHeaderSource('gallery')" class="sr-only">
+                                            Galerie
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Image Preview Area -->
+                                <div
+                                    class="relative group rounded-xl overflow-hidden bg-gray-100 aspect-video border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-blue-400 transition-colors">
+                                    <img id="header-preview" src="{{ trip.headerImage or trip.coverImage }}"
+                                        class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 {{ 'hidden' if not trip.headerImage and not trip.coverImage }}">
+
+                                    <!-- Upload Overlay -->
+                                    <div id="source-upload"
+                                        class="absolute inset-0 flex flex-col items-center justify-center p-6 bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-blue-500 mb-2"></i>
+                                        <span class="text-sm font-medium text-gray-600">Cliquez pour changer
+                                            l'image</span>
+                                        <input type="file" name="header_image_file" accept="image/*"
+                                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onchange="previewHeaderImage(this)">
+                                    </div>
+
+                                    <!-- Gallery Selection (Empty state placeholder) -->
+                                    <div id="source-gallery"
+                                        class="hidden absolute inset-0 bg-white p-4 overflow-y-auto">
+                                        <div class="grid grid-cols-4 gap-2">
+                                            {% set all_photos = [] %}
+                                            {% if trip.coverImage %} {% set _ = all_photos.append(trip.coverImage) %} {%
+                                            endif %}
+                                            {% for photo in trip.photos %} {% set _ = all_photos.append(photo) %} {%
+                                            endfor %}
+                                            {% for day in trip.days %}
+                                            {% if day.hotel and day.hotel.photos %}
+                                            {% for photo in day.hotel.photos %} {% set _ = all_photos.append(photo) %}
+                                            {% endfor %}
+                                            {% endif %}
+                                            {% endfor %}
+
+                                            {% for photo_url in all_photos|unique %}
+                                            <div class="relative aspect-square cursor-pointer group rounded-lg overflow-hidden border border-gray-200 hover:border-blue-500"
+                                                onclick="selectGalleryImage(this, '{{ photo_url }}')">
+                                                <img src="{{ photo_url }}" class="w-full h-full object-cover">
+                                                <div
+                                                    class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors">
+                                                </div>
+                                                <div
+                                                    class="check-indicator absolute top-1 right-1 bg-blue-600 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center hidden shadow-sm">
+                                                    <i class="fas fa-check text-[10px]"></i>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        <input type="hidden" name="header_image_url" id="selected_header_url">
+                                    </div>
+
+                                    {% if not trip.headerImage and not trip.coverImage %}
+                                    <div class="text-center pointer-events-none">
+                                        <p class="text-gray-400">Aucune image sélectionnée</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Marketing Teaser -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h2 class="text-lg font-bold text-gray-800"><i
+                                    class="fas fa-bullhorn text-purple-500 mr-2"></i> Teaser Marketing</h2>
+                            <button type="button" onclick="generateTeaser()" id="btn-generate-teaser"
+                                class="text-xs bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-full shadow hover:shadow-md transition-all flex items-center font-medium">
+                                <i class="fas fa-magic mr-2"></i> Générer avec l'IA
+                            </button>
+                        </div>
+                        <div class="p-6">
+                            <div class="relative">
+                                <textarea name="teaserText" rows="6" required
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent font-sans text-gray-600 leading-relaxed resize-y"
+                                    placeholder="Écrivez une description accrocheuse pour vos clients...">{{ teaser_text }}</textarea>
+                                <div class="absolute bottom-3 right-3 text-xs text-gray-400 pointer-events-none">
+                                    Markdown supporté</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Photo Gallery -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h2 class="text-lg font-bold text-gray-800"><i class="fas fa-camera text-pink-500 mr-2"></i>
+                                Galerie Publique</h2>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-sm text-gray-500 mb-4">Sélectionnez les images qui apparaîtront dans le
+                                carrousel du voyage.</p>
+
+                            <!-- Elegant Tabs -->
+                            <div class="flex space-x-1 bg-gray-100/80 p-1 rounded-lg mb-6 w-fit">
+                                <button type="button" onclick="switchGalleryTab('hotels')" id="tab-hotels"
+                                    class="gallery-tab-btn px-4 py-2 rounded-md text-sm font-medium transition-all shadow-sm bg-white text-gray-800">
+                                    Hôtels
+                                </button>
+                                <button type="button" onclick="switchGalleryTab('restaurants')" id="tab-restaurants"
+                                    class="gallery-tab-btn px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
+                                    Restaurants
+                                </button>
+                                <button type="button" onclick="switchGalleryTab('pois')" id="tab-pois"
+                                    class="gallery-tab-btn px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
+                                    Points d'intérêt
+                                </button>
+                                <button type="button" onclick="switchGalleryTab('media')" id="tab-media"
+                                    class="gallery-tab-btn px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
+                                    Médias
+                                </button>
+                            </div>
+
+                            <!-- Content Panes (Masonry-like Grid) -->
+                            <input type="hidden" name="gallery_images" id="gallery_images_input">
+
+                            <!-- HOTELS -->
+                            <div id="gallery-content-hotels" class="gallery-content-pane">
+                                <div
+                                    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                    {% for day in trip.days %}
+                                    {% if day.hotel and day.hotel.photos %}
+                                    {% for photo in day.hotel.photos %}
+                                    <div class="relative aspect-square cursor-pointer group gallery-item rounded-lg overflow-hidden"
+                                        data-category="hotels" data-url="{{ photo }}"
+                                        onclick="toggleGalleryImage(this)">
+                                        <img src="{{ photo }}"
+                                            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                                        <div
+                                            class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors">
+                                        </div>
+                                        <div
+                                            class="check-indicator absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1 shadow-md transform scale-0 transition-transform">
+                                            <i class="fas fa-check text-xs"></i>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- RESTAURANTS -->
+                            <div id="gallery-content-restaurants" class="gallery-content-pane hidden">
+                                <div
+                                    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                    {% for day in trip.days %}
+                                    {% if day.restaurants %}
+                                    {% for suggestion in day.restaurants %}
+                                    {% if suggestion.photos %}
+                                    {% for photo in suggestion.photos %}
+                                    <div class="relative aspect-square cursor-pointer group gallery-item rounded-lg overflow-hidden"
+                                        data-category="restaurants" data-url="{{ photo }}"
+                                        onclick="toggleGalleryImage(this)">
+                                        <img src="{{ photo }}"
+                                            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                                        <div
+                                            class="check-indicator absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1 shadow-md transform scale-0 transition-transform">
+                                            <i class="fas fa-check text-xs"></i>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- POIS -->
+                            <div id="gallery-content-pois" class="gallery-content-pane hidden">
+                                <div
+                                    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                    {% for day in trip.days %}
+                                    {% if day.poi_objects %}
+                                    {% for poi in day.poi_objects %}
+                                    {% if poi.photos %}
+                                    {% for photo in poi.photos %}
+                                    <div class="relative aspect-square cursor-pointer group gallery-item rounded-lg overflow-hidden"
+                                        data-category="pois" data-url="{{ photo }}" onclick="toggleGalleryImage(this)">
+                                        <img src="{{ photo }}"
+                                            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                                        <div
+                                            class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                                            <p class="text-[10px] text-white truncate">{{ poi.name }}</p>
+                                        </div>
+                                        <div
+                                            class="check-indicator absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1 shadow-md transform scale-0 transition-transform">
+                                            <i class="fas fa-check text-xs"></i>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- MEDIA -->
+                            <div id="gallery-content-media" class="gallery-content-pane hidden">
+                                <div
+                                    class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                    {% set media_photos = [] %}
+                                    {% if trip.coverImage %} {% set _ = media_photos.append(trip.coverImage) %} {% endif
+                                    %}
+                                    {% for photo in trip.photos %} {% set _ = media_photos.append(photo) %} {% endfor %}
+
+                                    {% for photo in media_photos|unique %}
+                                    <div class="relative aspect-square cursor-pointer group gallery-item rounded-lg overflow-hidden"
+                                        data-category="media" data-url="{{ photo }}" onclick="toggleGalleryImage(this)">
+                                        <img src="{{ photo }}"
+                                            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                                        <div
+                                            class="check-indicator absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1 shadow-md transform scale-0 transition-transform">
+                                            <i class="fas fa-check text-xs"></i>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- SIDEBAR (Right Column) -->
+                <div class="lg:col-span-4 space-y-6">
+
+                    <!-- Theme Selector -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Thème Visuel</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex flex-wrap gap-3 justify-center">
+                                {% set themes = [
+                                ('yellow', '#F59E0B', 'Jaune'),
+                                ('red', '#DC2626', 'Rouge'),
+                                ('blue_light', '#0EA5E9', 'Ciel'),
+                                ('blue_dark', '#2563EB', 'Océan'),
+                                ('green', '#16A34A', 'Vert'),
+                                ('pink', '#DB2777', 'Rose')
+                                ] %}
+                                {% for val, color, label in themes %}
+                                <label class="cursor-pointer group text-center">
+                                    <input type="radio" name="theme_color" value="{{ val }}" class="peer sr-only" {% if
+                                        (not trip.themeColor and val=='yellow' ) or trip.themeColor==val %}checked{%
+                                        endif %}>
+                                    <div class="w-12 h-12 rounded-full border-4 border-transparent peer-checked:border-gray-800 peer-checked:scale-110 transition-all shadow-md group-hover:scale-105 mx-auto mb-1"
+                                        style="background-color: {{ color }};"></div>
+                                    <span
+                                        class="text-xs text-gray-500 font-medium group-hover:text-gray-800 transition-colors">{{
+                                        label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Key Configuration -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Configuration</h3>
+                        </div>
+                        <div class="p-6 space-y-6">
+
+                            <!-- Difficulty -->
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Difficulté</label>
+                                <select name="difficultyLevel"
+                                    class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-colors appearance-none cursor-pointer">
+                                    <option value="1" {% if trip.difficultyLevel==1 %}selected{% endif %}>⭐ Débutant
+                                    </option>
+                                    <option value="2" {% if trip.difficultyLevel==2 %}selected{% endif %}>⭐⭐ Facile
+                                    </option>
+                                    <option value="3" {% if trip.difficultyLevel==3 or not trip.difficultyLevel
+                                        %}selected{% endif %}>⭐⭐⭐ Intermédiaire</option>
+                                    <option value="4" {% if trip.difficultyLevel==4 %}selected{% endif %}>⭐⭐⭐⭐ Difficile
+                                    </option>
+                                    <option value="5" {% if trip.difficultyLevel==5 %}selected{% endif %}>⭐⭐⭐⭐⭐ Expert
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Price -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Prix
+                                    (À partir de)</label>
+                                <div class="relative">
+                                    <input type="number" name="price" value="{{ trip.salePricePerPerson }}" required
+                                        class="w-full px-4 py-2 pl-8 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-bold text-gray-800 text-lg">
+                                    <span class="absolute left-3 top-2.5 text-gray-400">€</span>
+                                </div>
+                            </div>
+
+                            <!-- Slug -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">URL
+                                    Slug</label>
+                                <input type="text" name="slug"
+                                    value="{{ trip.slug|default(trip.name|lower|replace(' ', '-')) }}" required
+                                    class="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white font-mono text-gray-600">
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Deposit Config -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Acomptes</h3>
+                            <i class="fas fa-money-bill-wave text-green-500"></i>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Type de calcul</label>
+                                <select name="deposit_type" id="deposit_type" onchange="updateDepositLabel()"
+                                    class="w-full text-sm px-3 py-2 border border-gray-200 rounded-md bg-gray-50">
+                                    <option value="percentage" {% if trip.depositType=='percentage' %}selected{% endif
+                                        %}>Pourcentage (%)</option>
+                                    <option value="fixed_per_person" {% if trip.depositType=='fixed_per_person' or not
+                                        trip.depositType %}selected{% endif %}>Fixe par personne (€)</option>
+                                    <option value="fixed_total" {% if trip.depositType=='fixed_total' %}selected{% endif
+                                        %}>Fixe total (€)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" id="deposit_label">Valeur</label>
+                                <input type="number" name="deposit_value" step="0.01"
+                                    value="{{ trip.depositValue if trip.depositValue is not none else 30 }}" required
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-md font-medium">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Safety Notice -->
+                    <div class="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                        <div class="flex items-start">
+                            <i class="fas fa-shield-alt text-amber-500 mt-1 mr-3"></i>
+                            <p class="text-xs text-amber-800 leading-relaxed">
+                                <strong>Protection Anti-Vol :</strong> Les tracés GPX précis sont masqués publiquement.
+                                Seule une version simplifiée est affichée.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<!-- Modal Loading -->
+<div id="loadingModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+    <div class="bg-white p-8 rounded-2xl flex flex-col items-center shadow-2xl max-w-sm text-center">
+        <div class="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Publication en cours</h3>
+        <p class="text-gray-500 text-sm">Nous finalisons la page de votre voyage, veuillez patienter...</p>
+    </div>
+</div>
+
+<script>
+    // --- SHOW LOADING ---
+    function showLoadingModal() {
+        document.getElementById('loadingModal').classList.remove('hidden');
+    }
+
+    // --- DEPOSIT LABEL ---
+    function updateDepositLabel() {
+        const type = document.getElementById('deposit_type').value;
+        const label = document.getElementById('deposit_label');
+        if (type === 'percentage') {
+            label.textContent = 'Pourcentage (%)';
+        } else {
+            label.textContent = 'Montant (€)';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', updateDepositLabel);
+
+
+    // --- HEADER IMAGE LOGIC ---
+    function previewHeaderImage(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('header-preview').src = e.target.result;
+                document.getElementById('header-preview').classList.remove('hidden');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function toggleHeaderSource(source) {
+        const uploadDiv = document.getElementById('source-upload');
+        const galleryDiv = document.getElementById('source-gallery');
+
+        if (source === 'upload') {
+            uploadDiv.classList.remove('hidden', 'pointer-events-none', 'opacity-50');
+            galleryDiv.classList.add('hidden');
+        } else {
+            uploadDiv.classList.add('hidden');
+            galleryDiv.classList.remove('hidden');
+        }
+    }
+
+    function selectGalleryImage(el, url) {
+        // Deselect prev in this context
+        const container = document.getElementById('source-gallery');
+        container.querySelectorAll('.check-indicator').forEach(i => i.classList.add('hidden'));
+        container.querySelectorAll('.border-blue-500').forEach(i => i.classList.remove('border-blue-500'));
+
+        // Select new
+        el.querySelector('.check-indicator').classList.remove('hidden');
+        el.classList.add('border-blue-500'); // Add a border class manually if needed or rely on ring
+
+        document.getElementById('selected_header_url').value = url;
+
+        // Force preview update
+        document.getElementById('header-preview').src = url;
+        document.getElementById('header-preview').classList.remove('hidden');
+
+        // Close gallery view after selection (optional, or just show feedback)
+        toggleHeaderSource('upload'); // Switch back to preview view but keep value
+    }
+
+    // --- GALLERY MANAGEMENT LOGIC ---
+    let selectedGalleryImages = new Set();
+    // Pre-fill if editing existing
+    {% if trip.galleryImages %}
+    {% for img in trip.galleryImages %}
+    selectedGalleryImages.add("{{ img }}");
+    {% endfor %}
+    {% endif %}
+
+    function updateGalleryUI() {
+        document.querySelectorAll('.gallery-item').forEach(item => {
+            const url = item.dataset.url;
+            const check = item.querySelector('.check-indicator');
+            const img = item.querySelector('img');
+
+            if (selectedGalleryImages.has(url)) {
+                check.classList.remove('scale-0');
+                check.classList.add('scale-100');
+                img.classList.add('opacity-80');
+                item.classList.add('ring-2', 'ring-blue-500');
+            } else {
+                check.classList.add('scale-0');
+                check.classList.remove('scale-100');
+                img.classList.remove('opacity-80');
+                item.classList.remove('ring-2', 'ring-blue-500');
+            }
+        });
+        document.getElementById('gallery_images_input').value = JSON.stringify(Array.from(selectedGalleryImages));
+    }
+
+    function toggleGalleryImage(el) {
+        const url = el.dataset.url;
+        if (selectedGalleryImages.has(url)) {
+            selectedGalleryImages.delete(url);
+        } else {
+            selectedGalleryImages.add(url);
+        }
+        updateGalleryUI();
+    }
+
+    function switchGalleryTab(tab) {
+        // Tabs Styling
+        document.querySelectorAll('.gallery-tab-btn').forEach(btn => {
+            btn.classList.remove('bg-white', 'text-gray-800', 'shadow-sm');
+            btn.classList.add('text-gray-500', 'hover:text-gray-700');
+        });
+        const activeBtn = document.getElementById('tab-' + tab);
+        activeBtn.classList.add('bg-white', 'text-gray-800', 'shadow-sm');
+        activeBtn.classList.remove('text-gray-500', 'hover:text-gray-700');
+
+        // Panes
+        document.querySelectorAll('.gallery-content-pane').forEach(pane => pane.classList.add('hidden'));
+        document.getElementById('gallery-content-' + tab).classList.remove('hidden');
+    }
+
+    // Init Logic
+    document.addEventListener('DOMContentLoaded', () => {
+        updateGalleryUI();
+
+        // Also init logic for header source toggle state if needed
+        // Default is upload checked in HTML
+    });
+
+    async function generateTeaser() {
+        const btn = document.getElementById('btn-generate-teaser');
+        const textarea = document.querySelector('textarea[name="teaserText"]');
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> ...';
+
+        try {
+            const response = await fetch(`/admin/api/trips/{{ trip.id }}/generate-teaser`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) throw new Error('Erreur réseau');
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            textarea.value = data.teaser;
+        } catch (e) {
+            console.error(e);
+            alert('Erreur: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+</script>
+
+<style>
+    /* Custom Scrollbar for Gallery */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+{% endblock %}

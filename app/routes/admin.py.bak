@@ -1,0 +1,3057 @@
+"""
+Routes admin pour le dashboard et la gestion
+"""
+from flask import Blueprint, render_template, redirect, url_for, request, jsonify, session, current_app, abort
+from functools import wraps
+from werkzeug.security import check_password_hash
+from app.services import FirebaseService
+from app.utils import calculate_trip_costs, calculate_sale_prices
+import time
+
+bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# Credentials admin (en dur pour simplifier)
+ADMIN_USERNAME = 'Sam'
+ADMIN_PASSWORD_HASH = 'scrypt:32768:8:1$2EG3c09v85hTBDc2$0fcac06f249ff5da65a1aa8969090c13fe56354455c0c0895d8c719a1d3d56c9213c5c634dfff9c9b77373bad72aa4f1ae4f08e7c05d588645e60dc4fdee3724'  # $AMuel12xxpj
+
+
+def get_firebase_service():
+    """Récupère une instance du service Firebase"""
+    app_id = current_app.config.get('APP_ID', 'default-app-id')
+    return FirebaseService(app_id)
+
+
+def get_current_user_id():
+    """Retourne toujours le même userId fixe pour Sam"""
+    return 'sam-user'
+
+
+def login_required(f):
+    """Décorateur pour protéger les routes admin"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            if request.is_json:
+                return jsonify({'error': 'Non authentifié'}), 401
+            return redirect(url_for('admin.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_user():
+    """Décorateur pour vérifier qu'un utilisateur est connecté (API)"""
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({'error': 'Non authentifié'}), 401
+    return None
+
+
+@bp.route('/dashboard')
+@login_required
+def dashboard():
+    """Page dashboard admin - Vue principale en grille"""
+    # Utilise toujours le userId fixe 'sam-user'
+    user_id = get_current_user_id()
+    
+    # Récupère les données Firebase
+    firebase = get_firebase_service()
+    trips = firebase.get_user_trips(user_id)
+    
+    # Récupère la clé API Google Maps
+    google_maps_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+    if not google_maps_key:
+        # Fallback sur la variable d'environnement ou valeur par défaut
+        import os
+        google_maps_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyDFNp_SRKMbOncczpg21uL_d0q2bRlpeeY')
+    
+    print(f"🔑 Google Maps API Key chargée: {google_maps_key[:20]}..." if google_maps_key else "❌ Aucune clé API")
+    
+    return render_template('admin/dashboard.html',
+                         trips=trips,
+                         user_id=user_id,
+                         google_maps_key=google_maps_key)
+
+
+@bp.route('/dashboard-old')
+@login_required
+def dashboard_old():
+    """Ancien dashboard pour la construction de voyages (utilisé en iframe)"""
+    user_id = get_current_user_id()
+    
+    # Récupère les données Firebase
+    firebase = get_firebase_service()
+    trips = firebase.get_user_trips(user_id)
+    
+    # Récupère la clé API Google Maps
+    google_maps_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+    if not google_maps_key:
+        import os
+        google_maps_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyDFNp_SRKMbOncczpg21uL_d0q2bRlpeeY')
+    
+    # Récupère le trip_id depuis les paramètres
+    selected_trip_id = request.args.get('trip', None)
+    
+    # Utilise l'ancien template de dashboard pour la construction
+    return render_template('admin/dashboard_OLD_BACKUP.html',
+                         trips=trips,
+                         user_id=user_id,
+                         google_maps_key=google_maps_key,
+                         selected_trip_id=selected_trip_id)
+
+
+@bp.route('/hotels/search')
+@login_required
+def hotel_search():
+    """Page de recherche d'hôtels moto-friendly"""
+    return render_template('admin/hotel_search.html')
+
+
+@bp.route('/api/trips', methods=['GET'])
+def get_trips():
+    """API: Récupère tous les voyages de l'utilisateur"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        trips = firebase.get_user_trips(user_id)
+        return jsonify({'success': True, 'trips': trips})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips', methods=['POST'])
+def create_trip():
+    """API: Crée un nouveau voyage"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    if not data or not data.get('name'):
+        return jsonify({'error': 'Le nom du voyage est requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        trip_id = firebase.create_trip(user_id, data['name'])
+        if trip_id:
+            return jsonify({'success': True, 'trip_id': trip_id})
+        else:
+            return jsonify({'error': 'Erreur lors de la création'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>', methods=['GET'])
+def get_trip(trip_id):
+    """API: Récupère un voyage spécifique"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        trip = firebase.get_trip(user_id, trip_id)
+        if trip:
+            return jsonify({'success': True, 'trip': trip})
+        else:
+            return jsonify({'error': 'Voyage non trouvé'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>', methods=['PUT'])
+def update_trip(trip_id):
+    """API: Met à jour un voyage"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.update_trip(user_id, trip_id, data)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>', methods=['DELETE'])
+def delete_trip(trip_id):
+    """API: Supprime un voyage"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_trip(user_id, trip_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days', methods=['GET'])
+def get_days(trip_id):
+    """API: Récupère toutes les étapes d'un voyage avec les infos complètes des hôtels"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # ✅ UTILISE LA NOUVELLE FONCTION AVEC HÔTELS
+        days = firebase.get_trip_days_with_hotels(user_id, trip_id)
+        
+        # Calcule les coûts
+        costs = calculate_trip_costs(days)
+        
+        # Récupère le prix de vente du voyage
+        trip = firebase.get_trip(user_id, trip_id)
+        sale_price_pp = trip.get('salePricePerPerson', 0) if trip else 0
+        
+        # Calcule les prix de vente
+        sale_prices = calculate_sale_prices(costs, sale_price_pp)
+        
+        return jsonify({
+            'success': True,
+            'days': days,
+            'costs': costs,
+            'sale_prices': sale_prices
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days', methods=['POST'])
+def create_day(trip_id):
+    """API: Crée une nouvelle étape"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    # Validation
+    required_fields = ['dayName', 'city', 'hotelName']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    # ⭐ SYNCHRONISATION BANQUE D'HÔTELS
+    # Si un hotelId est fourni (sélection depuis la banque), l'utiliser
+    hotel_id = data.get('hotelId')
+    
+    # Sinon, vérifier si l'hôtel existe déjà dans la banque ou le créer
+    if not hotel_id:
+        hotel_name = data['hotelName']
+        city = data['city']
+        
+        # Cherche l'hôtel dans la banque (par nom ET ville)
+        existing_hotels = firebase.search_hotels(user_id, hotel_name, city)
+        existing_hotel = next((h for h in existing_hotels if h['name'].lower() == hotel_name.lower() and h['city'].lower() == city.lower()), None)
+        
+        if existing_hotel:
+            # L'hôtel existe déjà, utilise son ID
+            hotel_id = existing_hotel['id']
+            current_app.logger.info(f"✅ Hôtel existant trouvé: {hotel_name} ({hotel_id})")
+        else:
+            # L'hôtel n'existe pas, créons-le dans la banque
+            hotel_data = {
+                'name': hotel_name,
+                'city': city,
+                'address': data.get('address', ''),
+                'googlePlaceId': '',  # Sera rempli plus tard si disponible
+                'contact': {
+                    'phone': '',
+                    'email': '',
+                    'website': data.get('hotelLink', '')
+                }
+                # ❌ PLUS DE defaultPricing - les prix sont maintenant spécifiques à chaque voyage/dates
+            }
+            
+            try:
+                hotel_id = firebase.create_hotel(user_id, hotel_data)
+                current_app.logger.info(f"✅ Nouvel hôtel ajouté à la banque: {hotel_name} ({hotel_id})")
+            except Exception as e:
+                current_app.logger.error(f"❌ Erreur création hôtel dans banque: {str(e)}")
+                # Continue même si l'ajout à la banque échoue
+                hotel_id = None
+    
+    # Prépare les données de l'étape (avec hotelId maintenant)
+    day_data = {
+        'dayName': data['dayName'],
+        'city': data['city'],
+        'hotelName': data['hotelName'],
+        'priceDouble': float(data.get('priceDouble', 0)),
+        'priceSolo': float(data.get('priceSolo', 0)),
+        'nights': int(data.get('nights', 1)),
+        'gpxFile': data.get('gpxFile', ''),
+        'hotelLink': data.get('hotelLink', ''),
+        'hotelId': hotel_id,  # ⭐ Lien vers la banque d'hôtels
+        'pois': data.get('pois', [])
+    }
+    
+    try:
+        day_id = firebase.create_day(user_id, trip_id, day_data)
+        if day_id:
+            return jsonify({'success': True, 'day_id': day_id, 'hotel_id': hotel_id})
+        else:
+            return jsonify({'error': 'Erreur lors de la création'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>', methods=['GET'])
+def get_day(trip_id, day_id):
+    """API: Récupère une étape spécifique"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        day = firebase.get_day(user_id, trip_id, day_id)
+        if day:
+            return jsonify({'success': True, 'day': day})
+        else:
+            return jsonify({'error': 'Étape non trouvée'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>', methods=['PUT'])
+def update_day(trip_id, day_id):
+    """API: Met à jour une étape"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.update_day(user_id, trip_id, day_id, data)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>', methods=['DELETE'])
+def delete_day(trip_id, day_id):
+    """API: Supprime une étape"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_day(user_id, trip_id, day_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>/gpx', methods=['POST'])
+def upload_day_gpx(trip_id, day_id):
+    """API: Upload un fichier GPX pour une étape"""
+    error = require_user()
+    if error:
+        return error
+        
+    user_id = get_current_user_id()
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'Aucun fichier fourni'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nom de fichier vide'}), 400
+        
+    if not file.filename.lower().endswith('.gpx'):
+        return jsonify({'error': 'Seuls les fichiers .gpx sont acceptés'}), 400
+        
+    firebase = get_firebase_service()
+    
+    try:
+        file_bytes = file.read()
+        
+        # Parse GPX Stats
+        from app.services.gpx_service import parse_gpx_stats
+        gpx_stats = parse_gpx_stats(file_bytes)
+        
+        result = firebase.upload_day_gpx_file(
+            user_id, trip_id, day_id, 
+            file_bytes, file.filename
+        )
+        
+        if result:
+            # Met à jour l'étape avec les infos du GPX
+            update_data = {
+                'gpxFile': result['fileName'], # Garde le nom pour l'affichage simple
+                'gpxUrl': result['downloadURL'],
+                'gpxStoragePath': result['storagePath'],
+                'distance': gpx_stats['distance'],
+                'elevation': gpx_stats['elevation']
+            }
+            
+            # Reset file pointer if needed, though we passed bytes so it's fine.
+            
+            firebase.update_day(user_id, trip_id, day_id, update_data)
+            
+            return jsonify({'success': True, 'gpx': result})
+        else:
+            return jsonify({'error': 'Erreur lors de l\'upload'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/proxy-gpx', methods=['GET'])
+def proxy_gpx():
+    """Proxy pour télécharger le contenu GPX (contourne CORS)"""
+    url = request.args.get('url')
+    if not url:
+        return jsonify({'error': 'URL manquante'}), 400
+        
+    try:
+        import requests
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        return response.content, 200, {'Content-Type': 'application/xml'}
+    except Exception as e:
+        print(f"Erreur proxy GPX: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """Page de connexion admin"""
+    # Si déjà connecté, redirection vers dashboard
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin.dashboard'))
+    
+    if request.method == 'POST':
+        email = request.form.get('username')  # Le champ s'appelle username mais on attend un email
+        password = request.form.get('password')
+        remember = request.form.get('remember')
+        
+        # Vérifie avec Firebase
+        firebase = get_firebase_service()
+        user = firebase.get_user_by_email(email.lower().strip())
+        
+        if user and check_password_hash(user.password_hash, password):
+            # Vérifie que c'est un admin
+            if user.role == 'admin':
+                # Connexion réussie
+                session['admin_logged_in'] = True
+                session['admin_username'] = user.name
+                session['admin_email'] = user.email
+                session['admin_user_id'] = user.id
+                
+                # Remember me (session permanente)
+                if remember:
+                    session.permanent = True
+                
+                return redirect(url_for('admin.dashboard'))
+            else:
+                return render_template('admin/login.html', error='Accès réservé aux administrateurs')
+        else:
+            # Échec de connexion
+            return render_template('admin/login.html', error='Login ou mot de passe incorrect')
+    
+    return render_template('admin/login.html')
+
+
+@bp.route('/logout')
+def logout():
+    """Déconnexion admin"""
+    session.pop('admin_logged_in', None)
+    session.pop('admin_username', None)
+    return redirect(url_for('admin.login'))
+
+
+@bp.route('/bookings')
+@login_required
+def bookings():
+    """Page de gestion des réservations"""
+    return render_template('admin/bookings.html')
+
+
+@bp.route('/hotels')
+@login_required
+def hotels():
+    """Page de gestion de la banque d'hôtels"""
+    return render_template('admin/hotels.html')
+
+
+@bp.route('/customers')
+@login_required
+def customers():
+    """Page de gestion des clients"""
+    return render_template('admin/customers.html')
+
+
+@bp.route('/customers/<customer_id>')
+@login_required
+def customer_details(customer_id):
+    """Page de détails d'un client"""
+    firebase = get_firebase_service()
+    
+    # Récupère le client
+    customer = firebase.get_customer(customer_id)
+    if not customer:
+        abort(404)
+    
+    # Récupère les voyages assignés
+    assigned_trips = firebase.get_customer_trip_assignments(customer_id)
+    
+    # Récupère les vouchers
+    vouchers = firebase.get_customer_vouchers(customer_id)
+    
+    # Récupère les fichiers GPX
+    gpx_files = firebase.get_customer_gpx_files(customer_id)
+    
+    # Récupère tous les voyages disponibles pour l'assignation
+    user_id = get_current_user_id()
+    available_trips = firebase.get_user_trips(user_id)
+    
+    # Calcule la durée de chaque voyage (en jours)
+    for trip in available_trips:
+        days = firebase.get_trip_days(user_id, trip['id'])
+        total_nights = sum(day.get('nights', 1) for day in days)
+        trip['duration'] = total_nights if total_nights > 0 else len(days)
+    
+    return render_template('admin/customer_detail.html', 
+                         customer=customer, 
+                         assigned_trips=assigned_trips,
+                         vouchers=vouchers,
+                         gpx_files=gpx_files,
+                         available_trips=available_trips)
+
+
+# ============================================
+# API ROUTES - GESTION DES RÉSERVATIONS
+# ============================================
+
+@bp.route('/api/bookings', methods=['GET'])
+@login_required
+def api_get_bookings():
+    """API: Récupère toutes les réservations"""
+    firebase = get_firebase_service()
+    
+    try:
+        bookings = firebase.get_all_bookings()
+        return jsonify({'success': True, 'bookings': bookings})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - GESTION DES CLIENTS
+# ============================================
+
+@bp.route('/api/customers', methods=['GET'])
+@login_required
+def api_get_customers():
+    """API: Récupère tous les clients"""
+    firebase = get_firebase_service()
+    
+    try:
+        customers = firebase.get_customers()
+        
+        # Ajoute le nombre de voyages assignés à chaque client
+        for customer in customers:
+            trip_count = len(firebase.get_customer_trip_assignments(customer['id']))
+            customer['tripCount'] = trip_count
+        
+        return jsonify({'success': True, 'customers': customers})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers', methods=['POST'])
+@login_required
+def api_create_customer():
+    """API: Crée un nouveau client"""
+    data = request.get_json()
+    
+    # Validation
+    required_fields = ['name', 'email', 'phone']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        customer_data = {
+            'name': data['name'],
+            'email': data['email'],
+            'phone': data['phone'],
+            'address': data.get('address', '')
+        }
+        
+        customer_id = firebase.create_customer(customer_data)
+        if customer_id:
+            return jsonify({'success': True, 'customer_id': customer_id})
+        else:
+            return jsonify({'error': 'Erreur lors de la création du client'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>', methods=['GET'])
+@login_required
+def api_get_customer(customer_id):
+    """API: Récupère un client spécifique"""
+    firebase = get_firebase_service()
+    
+    try:
+        customer = firebase.get_customer(customer_id)
+        if customer:
+            return jsonify({'success': True, 'customer': customer})
+        else:
+            return jsonify({'error': 'Client non trouvé'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>', methods=['PUT'])
+@login_required
+def api_update_customer(customer_id):
+    """API: Met à jour un client"""
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        # Filtre les champs autorisés
+        allowed_fields = ['name', 'email', 'phone', 'address']
+        update_data = {k: v for k, v in data.items() if k in allowed_fields}
+        
+        success = firebase.update_customer(customer_id, update_data)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>', methods=['DELETE'])
+@login_required
+def api_delete_customer(customer_id):
+    """API: Supprime un client"""
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_customer(customer_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - VOYAGES ASSIGNÉS
+# ============================================
+
+@bp.route('/api/customers/<customer_id>/trips', methods=['GET'])
+@login_required
+def api_get_customer_trips(customer_id):
+    """API: Récupère les voyages assignés à un client"""
+    firebase = get_firebase_service()
+    
+    try:
+        trips = firebase.get_customer_trip_assignments(customer_id)
+        return jsonify({'success': True, 'trips': trips})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/trips', methods=['POST'])
+@login_required
+def api_assign_trip_to_customer(customer_id):
+    """API: Assigne un voyage à un client"""
+    data = request.get_json()
+    
+    # Validation
+    required_fields = ['tripId', 'tripName', 'startDate', 'endDate']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        trip_data = {
+            'tripId': data['tripId'],
+            'tripName': data['tripName'],
+            'startDate': data['startDate'],
+            'endDate': data['endDate']
+        }
+        
+        assignment_id = firebase.assign_trip_to_customer(customer_id, trip_data)
+        if assignment_id:
+            return jsonify({'success': True, 'assignment_id': assignment_id})
+        else:
+            return jsonify({'error': 'Erreur lors de l\'assignation'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/trips/<assignment_id>', methods=['DELETE'])
+@login_required
+def api_unassign_trip_from_customer(customer_id, assignment_id):
+    """API: Retire un voyage assigné à un client"""
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.unassign_trip_from_customer(customer_id, assignment_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors du retrait du voyage'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - VOUCHERS
+# ============================================
+
+@bp.route('/api/customers/<customer_id>/vouchers', methods=['GET'])
+@login_required
+def api_get_customer_vouchers(customer_id):
+    """API: Récupère les vouchers d'un client"""
+    firebase = get_firebase_service()
+    
+    try:
+        vouchers = firebase.get_customer_vouchers(customer_id)
+        return jsonify({'success': True, 'vouchers': vouchers})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/vouchers', methods=['POST'])
+@login_required
+def api_upload_voucher(customer_id):
+    """API: Upload un voucher pour un client"""
+    
+    # Vérifie qu'un fichier a été envoyé
+    if 'file' not in request.files:
+        return jsonify({'error': 'Aucun fichier fourni'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'Nom de fichier vide'}), 400
+    
+    # Récupère l'ID d'assignation optionnel
+    assignment_id = request.form.get('assignmentId', None)
+    
+    firebase = get_firebase_service()
+    
+    try:
+        # Lit le contenu du fichier
+        file_bytes = file.read()
+        
+        # Détermine le type de contenu
+        content_type = file.content_type or 'application/pdf'
+        
+        # Upload le fichier
+        result = firebase.upload_customer_voucher(
+            customer_id=customer_id,
+            file_bytes=file_bytes,
+            file_name=file.filename,
+            assignment_id=assignment_id,
+            content_type=content_type
+        )
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'voucher': result
+            })
+        else:
+            return jsonify({'error': 'Erreur lors de l\'upload du voucher'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur upload voucher: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/vouchers/<voucher_id>', methods=['DELETE'])
+@login_required
+def api_delete_voucher(customer_id, voucher_id):
+    """API: Supprime un voucher"""
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_customer_voucher(customer_id, voucher_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression du voucher'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - FICHIERS GPX
+# ============================================
+
+@bp.route('/api/customers/<customer_id>/gpx', methods=['GET'])
+@login_required
+def api_get_customer_gpx_files(customer_id):
+    """API: Récupère les fichiers GPX d'un client"""
+    firebase = get_firebase_service()
+    
+    try:
+        gpx_files = firebase.get_customer_gpx_files(customer_id)
+        return jsonify({'success': True, 'gpxFiles': gpx_files})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/gpx', methods=['POST'])
+@login_required
+def api_upload_gpx_file(customer_id):
+    """API: Upload un fichier GPX pour un client"""
+    
+    # Vérifie qu'un fichier a été envoyé
+    if 'file' not in request.files:
+        return jsonify({'error': 'Aucun fichier fourni'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'Nom de fichier vide'}), 400
+    
+    # Vérifie l'extension du fichier
+    if not file.filename.lower().endswith('.gpx'):
+        return jsonify({'error': 'Seuls les fichiers .gpx sont acceptés'}), 400
+    
+    # Récupère l'ID d'assignation optionnel
+    assignment_id = request.form.get('assignmentId', None)
+    
+    firebase = get_firebase_service()
+    
+    try:
+        # Lit le contenu du fichier
+        file_bytes = file.read()
+        
+        # Upload le fichier
+        result = firebase.upload_customer_gpx_file(
+            customer_id=customer_id,
+            file_bytes=file_bytes,
+            file_name=file.filename,
+            assignment_id=assignment_id
+        )
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'gpxFile': result
+            })
+        else:
+            return jsonify({'error': 'Erreur lors de l\'upload du fichier GPX'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur upload GPX: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/customers/<customer_id>/gpx/<gpx_id>', methods=['DELETE'])
+@login_required
+def api_delete_gpx_file(customer_id, gpx_id):
+    """API: Supprime un fichier GPX"""
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_customer_gpx_file(customer_id, gpx_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression du fichier GPX'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# ROUTES DE PUBLICATION
+# ============================================
+
+@bp.route('/api/trips/<trip_id>/publish', methods=['POST'])
+def publish_trip(trip_id):
+    """API: Publie un voyage pour le rendre accessible aux clients"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    # Récupère le voyage
+    trip = firebase.get_trip(user_id, trip_id)
+    if not trip:
+        return jsonify({'error': 'Voyage non trouvé'}), 404
+    
+    # Récupère les étapes
+    days = firebase.get_trip_days(user_id, trip_id)
+    if not days:
+        return jsonify({'error': 'Le voyage doit avoir au moins une étape'}), 400
+    
+    # Récupère le slug ou génère-le
+    slug = data.get('slug', '').strip()
+    if not slug:
+        # Génère un slug depuis le nom du voyage
+        import re
+        slug = re.sub(r'[^a-z0-9]+', '-', trip.get('name', '').lower()).strip('-')
+        if not slug:
+            slug = f'voyage-{trip_id}'
+    
+    # Vérifie que le slug est valide (URL-safe)
+    import re
+    if not re.match(r'^[a-z0-9\-]+$', slug):
+        return jsonify({'error': 'Le slug doit contenir uniquement des lettres, chiffres et tirets'}), 400
+    
+    # Vérifie que le slug n'existe pas déjà
+    if firebase.check_slug_exists(slug):
+        return jsonify({'error': 'Ce slug est déjà utilisé'}), 409
+    
+    # Prépare les données du voyage publié
+    published_data = {
+        'tripId': trip_id,
+        'userId': user_id,
+        'slug': slug,
+        'title': trip.get('name', 'Voyage sans titre'),
+        'description': data.get('description', ''),
+        'pricePerPerson': float(data.get('pricePerPerson', trip.get('salePricePerPerson', 0))),
+        'isActive': data.get('isActive', True),
+        'days': days,  # Copie des étapes
+        'stats': {
+            'views': 0,
+            'checkouts': 0
+        }
+    }
+    
+    # Publie le voyage
+    try:
+        success = firebase.create_published_trip(slug, published_data)
+        if success:
+            # Met à jour le voyage original avec le slug
+            firebase.update_trip(user_id, trip_id, {'publishedSlug': slug})
+            return jsonify({
+                'success': True,
+                'slug': slug,
+                'url': f'/voyageperso/{slug}'
+            })
+        else:
+            return jsonify({'error': 'Erreur lors de la publication'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/unpublish', methods=['DELETE'])
+def unpublish_trip(trip_id):
+    """API: Dépublie un voyage"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # Récupère le voyage pour obtenir le slug
+    trip = firebase.get_trip(user_id, trip_id)
+    if not trip:
+        return jsonify({'error': 'Voyage non trouvé'}), 404
+    
+    slug = trip.get('publishedSlug')
+    if not slug:
+        return jsonify({'error': 'Ce voyage n\'est pas publié'}), 400
+    
+    try:
+        # Supprime le voyage publié
+        success = firebase.delete_published_trip(slug)
+        if success:
+            # Retire le slug du voyage original ET met isPublished à False
+            firebase.update_trip(user_id, trip_id, {
+                'publishedSlug': None,
+                'isPublished': False
+            })
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la dépublication'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/published-trips', methods=['GET'])
+def get_published_trips():
+    """API: Récupère tous les voyages publiés de l'utilisateur"""
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère tous les voyages de l'utilisateur
+        trips = firebase.get_user_trips(user_id)
+        
+        # Filtre ceux qui sont publiés
+        published = [t for t in trips if t.get('publishedSlug')]
+        
+        return jsonify({
+            'success': True,
+            'publishedTrips': published
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# TÉLÉCHARGEMENT PHOTOS GOOGLE PLACES
+# ============================================
+
+@bp.route('/api/download-place-photo', methods=['POST'])
+def download_place_photo():
+    """
+    API: Télécharge une photo Google Places côté serveur (contourne CORS)
+    et l'upload vers Firebase Storage
+    """
+    error = require_user()
+    if error:
+        return error
+    
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    photo_url = data.get('photoUrl')
+    hotel_name = data.get('hotelName')
+    day_id = data.get('dayId')
+    file_index = data.get('fileIndex', 0)
+    
+    if not photo_url or not hotel_name or not day_id:
+        return jsonify({'error': 'Paramètres manquants'}), 400
+    
+    import requests
+    from datetime import datetime
+    import traceback
+    
+    firebase = get_firebase_service()
+    
+    try:
+        # Vérifie que Firebase Storage est disponible
+        firebase_storage = firebase.get_storage()
+        if firebase_storage is None:
+            error_msg = "Firebase Storage n'est pas initialisé"
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+        
+        # Télécharge la photo depuis Google
+        current_app.logger.info(f"Téléchargement photo depuis: {photo_url}")
+        response = requests.get(photo_url, timeout=30)
+        response.raise_for_status()
+        current_app.logger.info(f"Photo téléchargée: {len(response.content)} bytes")
+        
+        # Prépare les métadonnées
+        timestamp = int(datetime.now().timestamp() * 1000)
+        file_name = f"{timestamp}_google_places_{file_index + 1}.jpg"
+        hotel_slug = hotel_name.lower().replace(' ', '_')
+        hotel_slug = ''.join(c for c in hotel_slug if c.isalnum() or c == '_')
+        
+        storage_path = f"users/{user_id}/media/hotels/{hotel_slug}/{file_name}"
+        current_app.logger.info(f"Upload vers: {storage_path}")
+        
+        # Upload vers Firebase Storage
+        blob = firebase_storage.blob(storage_path)
+        blob.upload_from_string(
+            response.content,
+            content_type='image/jpeg'
+        )
+        blob.make_public()
+        download_url = blob.public_url
+        current_app.logger.info(f"Upload réussi: {download_url}")
+        
+        # PHASE 4: Récupère le hotelId depuis l'étape si disponible
+        trip_id = data.get('tripId')  # Devrait être fourni par le client
+        hotel_id = None
+        if trip_id:
+            trip = firebase.get_trip(user_id, trip_id)
+            if trip and trip.get('days'):
+                for day in trip['days']:
+                    if day.get('id') == day_id:
+                        hotel_id = day.get('hotelId')
+                        break
+        
+        # Enregistre dans Firestore
+        media_data = {
+            'type': 'hotel',
+            'fileName': f'google_places_{file_index + 1}.jpg',
+            'storagePath': storage_path,
+            'downloadURL': download_url,
+            'hotelName': hotel_name,
+            'hotelId': hotel_id,  # PHASE 4: Lien vers la banque d'hôtels
+            'linkedDayId': day_id,
+            'fileSize': len(response.content),
+            'source': 'google_places',
+            'uploadedAt': firebase.get_server_timestamp()
+        }
+        
+        # Ajoute à la collection media
+        firebase.add_media(user_id, media_data)
+        
+        return jsonify({
+            'success': True,
+            'downloadURL': download_url,
+            'fileName': file_name
+        })
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Erreur téléchargement photo: {str(e)}"
+        current_app.logger.error(error_msg)
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': error_msg}), 500
+    except Exception as e:
+        error_msg = f"Erreur upload Firebase: {str(e)}"
+        current_app.logger.error(error_msg)
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': error_msg}), 500
+
+
+@bp.route('/api/hotels/<hotel_name>/photos/count', methods=['GET'])
+@login_required
+def check_hotel_photos_exist(hotel_name):
+    """API: Vérifie si des photos existent déjà pour un hôtel"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère les photos existantes pour cet hôtel
+        photos = firebase.get_hotel_photos(user_id, hotel_name)
+        
+        return jsonify({
+            'success': True,
+            'count': len(photos),
+            'exists': len(photos) > 0
+        })
+    except Exception as e:
+        current_app.logger.error(f"Erreur vérification photos hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>/fetch-google-photos', methods=['POST'])
+@login_required
+def fetch_google_photos_for_hotel(trip_id, day_id):
+    """
+    API: Télécharge automatiquement les photos Google Places pour un hôtel
+    Récupère jusqu'à 5 photos depuis Google Places API
+    """
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère l'étape pour obtenir les infos de l'hôtel
+        day = firebase.get_day(user_id, trip_id, day_id)
+        if not day:
+            return jsonify({'error': 'Étape non trouvée'}), 404
+        
+        hotel_name = day.get('hotelName')
+        hotel_id = day.get('hotelId')  # ✅ SOURCE UNIQUE
+        place_id = request.json.get('placeId') if request.json else None
+        
+        if not hotel_name:
+            return jsonify({'error': 'Nom d\'hôtel manquant'}), 400
+        
+        # ✅ Vérifie si l'hôtel existe dans la BANQUE et a déjà des photos
+        if hotel_id:
+            hotel = firebase.get_hotel(user_id, hotel_id)
+            if hotel and hotel.get('photos') and len(hotel.get('photos')) > 0:
+                return jsonify({
+                    'success': True,
+                    'message': f'{len(hotel["photos"])} photo(s) déjà existante(s) pour cet hôtel',
+                    'photos_downloaded': 0,
+                    'skipped': True
+                })
+        
+        # Si pas de place_id, recherche l'hôtel sur Google
+        if not place_id:
+            import requests
+            google_api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+            
+            # Recherche de l'hôtel
+            search_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json'
+            search_params = {
+                'input': hotel_name,
+                'inputtype': 'textquery',
+                'fields': 'place_id',
+                'key': google_api_key
+            }
+            
+            search_response = requests.get(search_url, params=search_params, timeout=10)
+            search_data = search_response.json()
+            
+            if search_data.get('status') != 'OK' or not search_data.get('candidates'):
+                return jsonify({
+                    'success': False,
+                    'message': 'Hôtel non trouvé sur Google Maps',
+                    'photos_downloaded': 0
+                })
+            
+            place_id = search_data['candidates'][0]['place_id']
+        
+        # Récupère les détails de l'hôtel incluant les photos
+        import requests
+        google_api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+        
+        details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+        details_params = {
+            'place_id': place_id,
+            'fields': 'name,photos',
+            'key': google_api_key
+        }
+        
+        details_response = requests.get(details_url, params=details_params, timeout=10)
+        details_data = details_response.json()
+        
+        if details_data.get('status') != 'OK':
+            return jsonify({
+                'success': False,
+                'message': 'Impossible de récupérer les détails de l\'hôtel',
+                'photos_downloaded': 0
+            })
+        
+        photos_data = details_data.get('result', {}).get('photos', [])
+        
+        if not photos_data:
+            return jsonify({
+                'success': True,
+                'message': 'Aucune photo disponible pour cet hôtel sur Google',
+                'photos_downloaded': 0
+            })
+        
+        # Limite à 5 photos maximum
+        photos_to_download = photos_data[:5]
+        downloaded_count = 0
+        
+        firebase_storage = firebase.get_storage()
+        if firebase_storage is None:
+            return jsonify({'error': 'Firebase Storage non disponible'}), 500
+        
+        # ✅ Récupère le hotelId depuis l'étape
+        hotel_id = day.get('hotelId')
+        if not hotel_id:
+            return jsonify({'error': 'hotelId manquant dans l\'étape'}), 400
+        
+        # Télécharge chaque photo ET collecte les URLs
+        photo_urls = []
+        from datetime import datetime
+        for idx, photo in enumerate(photos_to_download):
+            photo_reference = photo.get('photo_reference')
+            if not photo_reference:
+                continue
+            
+            # Construit l'URL de la photo (maxwidth=1600 pour haute qualité)
+            photo_url = f'https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference={photo_reference}&key={google_api_key}'
+            
+            try:
+                # Télécharge la photo
+                photo_response = requests.get(photo_url, timeout=30)
+                photo_response.raise_for_status()
+                
+                # Prépare le stockage
+                timestamp = int(datetime.now().timestamp() * 1000)
+                file_name = f"{timestamp}_google_{idx + 1}.jpg"
+                hotel_slug = hotel_name.lower().replace(' ', '_').replace("'", '')
+                hotel_slug = ''.join(c for c in hotel_slug if c.isalnum() or c == '_')
+                
+                # ✅ Stocke dans users/{userId}/hotels/ (PAS media!)
+                storage_path = f"users/{user_id}/hotels/{hotel_slug}/{file_name}"
+                
+                # Upload vers Firebase Storage
+                blob = firebase_storage.blob(storage_path)
+                blob.upload_from_string(
+                    photo_response.content,
+                    content_type='image/jpeg'
+                )
+                blob.make_public()
+                download_url = blob.public_url
+                
+                # ✅ Collecte l'URL pour hotel.photos
+                photo_urls.append(download_url)
+                downloaded_count += 1
+                
+                current_app.logger.info(f"Photo {idx + 1}/{len(photos_to_download)} téléchargée pour {hotel_name}")
+                
+            except Exception as e:
+                current_app.logger.error(f"Erreur téléchargement photo {idx + 1}: {str(e)}")
+                continue
+        
+        # ✅ Met à jour hotel.photos dans la banque (PAS la collection media!)
+        if photo_urls:
+            try:
+                # Récupère les photos existantes de l'hôtel
+                hotel = firebase.get_hotel(user_id, hotel_id)
+                existing_photos = hotel.get('photos', []) if hotel else []
+                
+                # Ajoute les nouvelles photos
+                updated_photos = existing_photos + photo_urls
+                
+                # Met à jour l'hôtel
+                firebase.update_hotel(user_id, hotel_id, {'photos': updated_photos})
+                current_app.logger.info(f"✅ {len(photo_urls)} photo(s) ajoutée(s) à hotel.photos pour {hotel_name}")
+            except Exception as e:
+                current_app.logger.error(f"❌ Erreur mise à jour hotel.photos: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{downloaded_count} photo(s) téléchargée(s) avec succès',
+            'photos_downloaded': downloaded_count,
+            'hotel_name': hotel_name
+        })
+        
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Erreur API Google: {str(e)}")
+        return jsonify({'error': f'Erreur API Google: {str(e)}'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur téléchargement photos Google: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - STATISTIQUES DASHBOARD
+# ============================================
+
+@bp.route('/api/dashboard/stats', methods=['GET'])
+@login_required
+def api_get_dashboard_stats():
+    """API: Récupère les statistiques du dashboard"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Statistiques des voyages
+        trip_stats = firebase.get_trip_stats(user_id)
+        
+        # Nombre de clients
+        customers = firebase.get_customers()
+        customer_count = len(customers)
+        
+        # Nombre de nouvelles demandes
+        new_requests_count = firebase.count_new_trip_requests(user_id)
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'trips': trip_stats,
+                'customers': customer_count,
+                'newRequests': new_requests_count
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - DEMANDES DE VOYAGES
+# ============================================
+
+@bp.route('/api/trip-requests', methods=['GET'])
+@login_required
+def api_get_trip_requests():
+    """API: Récupère toutes les demandes de voyages"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # Paramètre de filtrage optionnel
+    status = request.args.get('status', None)
+    
+    try:
+        requests = firebase.get_trip_requests(user_id, status)
+        return jsonify({'success': True, 'requests': requests})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests', methods=['POST'])
+@login_required
+def api_create_trip_request():
+    """API: Crée une nouvelle demande de voyage (encodage manuel)"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    # Validation des champs requis
+    required_fields = ['customerInfo', 'tripDetails']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    # Validation des infos client
+    customer_info = data['customerInfo']
+    if not customer_info.get('name') or not customer_info.get('email'):
+        return jsonify({'error': 'Nom et email du client requis'}), 400
+    
+    # Validation des détails du voyage
+    trip_details = data['tripDetails']
+    if not trip_details.get('duration') or not trip_details.get('region'):
+        return jsonify({'error': 'Durée et région requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        request_data = {
+            'source': 'manual',
+            'status': 'new',
+            'customerInfo': customer_info,
+            'tripDetails': trip_details,
+            'sourceTrip': data.get('sourceTrip', None)
+        }
+        
+        request_id = firebase.create_trip_request(user_id, request_data)
+        if request_id:
+            return jsonify({'success': True, 'request_id': request_id})
+        else:
+            return jsonify({'error': 'Erreur lors de la création de la demande'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests/<request_id>', methods=['GET'])
+@login_required
+def api_get_trip_request(request_id):
+    """API: Récupère une demande spécifique"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        trip_request = firebase.get_trip_request(user_id, request_id)
+        if trip_request:
+            return jsonify({'success': True, 'request': trip_request})
+        else:
+            return jsonify({'error': 'Demande non trouvée'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests/<request_id>/status', methods=['PUT'])
+@login_required
+def api_update_trip_request_status(request_id):
+    """API: Met à jour le statut d'une demande"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    status = data.get('status')
+    if not status or status not in ['new', 'processing', 'completed', 'rejected']:
+        return jsonify({'error': 'Statut invalide'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.update_trip_request(user_id, request_id, {'status': status})
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests/<request_id>/create-trip', methods=['POST'])
+@login_required
+def api_create_trip_from_request(request_id):
+    """API: Crée un voyage depuis une demande"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère la demande
+        trip_request = firebase.get_trip_request(user_id, request_id)
+        if not trip_request:
+            return jsonify({'error': 'Demande non trouvée'}), 404
+        
+        customer_info = trip_request.get('customerInfo', {})
+        trip_details = trip_request.get('tripDetails', {})
+        
+        # Crée le nom du voyage
+        region = trip_details.get('region', 'Voyage')
+        duration = trip_details.get('duration', '')
+        customer_name = customer_info.get('name', 'Client')
+        trip_name = f"{region} - {duration}j - {customer_name}"
+        
+        # Crée le voyage
+        trip_id = firebase.create_trip(user_id, trip_name)
+        if not trip_id:
+            return jsonify({'error': 'Erreur lors de la création du voyage'}), 500
+        
+        # Cherche ou crée le client
+        customer_email = customer_info.get('email')
+        customers = firebase.get_customers()
+        existing_customer = next((c for c in customers if c.get('email') == customer_email), None)
+        
+        if existing_customer:
+            customer_id = existing_customer['id']
+        else:
+            # Crée un nouveau client
+            customer_data = {
+                'name': customer_info.get('name'),
+                'email': customer_info.get('email'),
+                'phone': customer_info.get('phone', ''),
+                'address': customer_info.get('address', '')
+            }
+            customer_id = firebase.create_customer(customer_data)
+        
+        # Assigne le voyage au client si on a un customer_id
+        if customer_id:
+            # Calcule les dates approximatives
+            from datetime import datetime, timedelta
+            start_date_str = trip_details.get('startDate')
+            if start_date_str:
+                try:
+                    start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                    end_date = start_date + timedelta(days=int(duration))
+                    
+                    assignment_data = {
+                        'tripId': trip_id,
+                        'tripName': trip_name,
+                        'startDate': start_date_str,
+                        'endDate': end_date.isoformat()
+                    }
+                    firebase.assign_trip_to_customer(customer_id, assignment_data)
+                except:
+                    pass
+        
+        # Met à jour la demande
+        firebase.update_trip_request(user_id, request_id, {
+            'status': 'completed',
+            'linkedTripId': trip_id,
+            'linkedCustomerId': customer_id
+        })
+        
+        return jsonify({
+            'success': True,
+            'trip_id': trip_id,
+            'customer_id': customer_id
+        })
+    except Exception as e:
+        current_app.logger.error(f"Erreur création voyage depuis demande: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests/<request_id>', methods=['DELETE'])
+@login_required
+def api_delete_trip_request(request_id):
+    """API: Supprime une demande de voyage"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_trip_request(user_id, request_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trip-requests/new-count', methods=['GET'])
+@login_required
+def api_get_new_trip_requests_count():
+    """API: Compte les nouvelles demandes (pour polling)"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        count = firebase.count_new_trip_requests(user_id)
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTE PUBLIQUE - DEMANDE DE VOYAGE
+# ============================================
+
+@bp.route('/api/public/trip-request', methods=['POST'])
+def api_public_create_trip_request():
+    """API PUBLIQUE: Soumet une demande de voyage depuis un formulaire public"""
+    data = request.get_json()
+    
+    # Validation des champs requis
+    required_fields = ['customerInfo', 'tripDetails']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    # On utilise toujours l'userId fixe de Sam pour les demandes publiques
+    user_id = 'sam-user'
+    firebase = get_firebase_service()
+    
+    try:
+        request_data = {
+            'source': 'public_form',
+            'status': 'new',
+            'customerInfo': data['customerInfo'],
+            'tripDetails': data['tripDetails'],
+            'sourceTrip': data.get('sourceTrip', None)  # Le slug du voyage qui a inspiré
+        }
+        
+        request_id = firebase.create_trip_request(user_id, request_data)
+        if request_id:
+            return jsonify({
+                'success': True,
+                'message': 'Votre demande a bien été envoyée ! Nous vous contacterons prochainement.',
+                'request_id': request_id
+            })
+        else:
+            return jsonify({'error': 'Erreur lors de l\'envoi de la demande'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur création demande publique: {str(e)}")
+        return jsonify({'error': 'Erreur lors de l\'envoi de la demande'}), 500
+
+
+# ============================================
+# API ROUTES - GESTION DE LA BANQUE DE MÉDIAS
+# ============================================
+
+@bp.route('/media')
+@login_required
+def media():
+    """Page de gestion de la banque de médias (cols & routes)"""
+    return render_template('admin/media.html')
+
+
+@bp.route('/api/media', methods=['GET'])
+@login_required
+def api_get_media():
+    """API: Récupère tous les médias de la banque"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # Paramètres de filtrage optionnels
+    media_type = request.args.get('type', None)  # 'col' ou 'route'
+    tag = request.args.get('tag', None)
+    
+    try:
+        media_list = firebase.get_media(user_id, media_type, tag)
+        return jsonify({'success': True, 'media': media_list})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération médias: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/media', methods=['POST'])
+@login_required
+def api_upload_media():
+    """API: Upload un ou plusieurs médias"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère les fichiers uploadés
+        if 'photos' not in request.files:
+            return jsonify({'success': False, 'error': 'Aucune photo fournie'}), 400
+        
+        files = request.files.getlist('photos')
+        
+        if not files or len(files) == 0:
+            return jsonify({'success': False, 'error': 'Aucune photo fournie'}), 400
+        
+        # Récupère les métadonnées depuis le formulaire
+        media_type = request.form.get('type', 'col')  # 'col' ou 'route'
+        tags_str = request.form.get('tags', '')
+        tags = [tag.strip() for tag in tags_str.split(',') if tag.strip()]
+        
+        # Validation du type (élargi pour inclure 'general')
+        if media_type not in ['col', 'route', 'general']:
+            return jsonify({'success': False, 'error': 'Type invalide'}), 400
+        
+        # Upload chaque photo
+        uploaded_media = []
+        timestamp = int(time.time())
+        
+        for i, file in enumerate(files, 1):
+            if file and file.filename:
+                # Génère un nom de fichier unique
+                ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
+                filename = f"{timestamp}_{media_type}_{i}.{ext}"
+                storage_path = f"users/{user_id}/media/{media_type}s/{filename}"
+                
+                # Upload vers Firebase Storage
+                blob = firebase.bucket.blob(storage_path)
+                blob.upload_from_file(file, content_type=file.content_type or 'image/jpeg')
+                blob.make_public()
+                
+                # Crée l'entrée dans Firestore
+                media_data = {
+                    'type': media_type,
+                    'fileName': file.filename,
+                    'storagePath': storage_path,
+                    'downloadURL': blob.public_url,
+                    'tags': tags,
+                    'assignedTrips': [],  # Pas encore assigné
+                    'fileSize': file.content_length or 0,
+                    'uploadedAt': firebase.get_server_timestamp()
+                }
+                
+                media_id = firebase.add_media(user_id, media_data)
+                
+                # Pour la réponse JSON, on utilise le timestamp actuel au lieu du Sentinel
+                response_data = {
+                    'id': media_id,
+                    'type': media_type,
+                    'fileName': file.filename,
+                    'storagePath': storage_path,
+                    'downloadURL': blob.public_url,
+                    'tags': tags,
+                    'assignedTrips': [],
+                    'fileSize': file.content_length or 0,
+                    'uploadedAt': {'seconds': timestamp}
+                }
+                uploaded_media.append(response_data)
+                
+                current_app.logger.info(f"✅ Média uploadé: {blob.public_url}")
+        
+        return jsonify({
+            'success': True,
+            'uploaded_count': len(uploaded_media),
+            'message': f'{len(uploaded_media)} média(s) uploadé(s) avec succès'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"❌ Erreur upload médias: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/media/<media_id>', methods=['GET'])
+@login_required
+def api_get_media_details(media_id):
+    """API: Récupère les détails d'un média spécifique"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        media = firebase.get_media_by_id(user_id, media_id)
+        if media:
+            return jsonify({'success': True, 'media': media})
+        else:
+            return jsonify({'error': 'Média non trouvé'}), 404
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération média: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/media/<media_id>', methods=['PUT'])
+@login_required
+def api_update_media(media_id):
+    """API: Met à jour les tags d'un média"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        # Seuls les tags peuvent être modifiés
+        update_data = {}
+        if 'tags' in data:
+            update_data['tags'] = data['tags']
+        
+        success = firebase.update_media(user_id, media_id, update_data)
+        if success:
+            media = firebase.get_media_by_id(user_id, media_id)
+            return jsonify({'success': True, 'media': media})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur MAJ média: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/media/<media_id>', methods=['DELETE'])
+@login_required
+def api_delete_media(media_id):
+    """API: Supprime un média"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_media(user_id, media_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur suppression média: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/media/batch-delete', methods=['POST'])
+@login_required
+def api_batch_delete_media():
+    """API: Supprime plusieurs médias en une seule opération"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    media_ids = data.get('media_ids', [])
+    if not media_ids or not isinstance(media_ids, list):
+        return jsonify({'error': 'media_ids requis (liste)'}), 400
+    
+    if len(media_ids) == 0:
+        return jsonify({'error': 'Aucun média à supprimer'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        deleted_count = 0
+        errors = []
+        
+        for media_id in media_ids:
+            try:
+                success = firebase.delete_media(user_id, media_id)
+                if success:
+                    deleted_count += 1
+                    current_app.logger.info(f"✅ Média supprimé: {media_id}")
+                else:
+                    errors.append(f"Erreur suppression {media_id}")
+                    current_app.logger.error(f"❌ Échec suppression: {media_id}")
+            except Exception as e:
+                errors.append(f"Exception pour {media_id}: {str(e)}")
+                current_app.logger.error(f"❌ Exception suppression {media_id}: {str(e)}")
+        
+        # Retourne le résultat
+        result = {
+            'success': True,
+            'deleted_count': deleted_count,
+            'total_requested': len(media_ids),
+            'errors': errors if errors else None
+        }
+        
+        if deleted_count == 0:
+            result['success'] = False
+            result['error'] = 'Aucun média n\'a pu être supprimé'
+            return jsonify(result), 500
+        
+        if errors:
+            current_app.logger.warning(f"⚠️ Suppression partielle: {deleted_count}/{len(media_ids)} réussie(s)")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        current_app.logger.error(f"❌ Erreur suppression multiple: {str(e)}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+
+@bp.route('/api/media/<media_id>/assign', methods=['POST'])
+@login_required
+def api_assign_media_to_trip(media_id):
+    """API: Assigne un média à un voyage"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    trip_id = data.get('tripId')
+    if not trip_id:
+        return jsonify({'error': 'tripId requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.assign_media_to_trip(user_id, media_id, trip_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Média assigné au voyage'})
+        else:
+            return jsonify({'error': 'Erreur lors de l\'assignation'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur assignation média: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/media/<media_id>/unassign', methods=['POST'])
+@login_required
+def api_unassign_media_from_trip(media_id):
+    """API: Désassigne un média d'un voyage"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    trip_id = data.get('tripId')
+    if not trip_id:
+        return jsonify({'error': 'tripId requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.unassign_media_from_trip(user_id, media_id, trip_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Média désassigné du voyage'})
+        else:
+            return jsonify({'error': 'Erreur lors de la désassignation'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur désassignation média: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/media', methods=['GET'])
+@login_required
+def api_get_trip_media(trip_id):
+    """API: Récupère tous les médias assignés à un voyage"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # Paramètre de filtrage par type optionnel
+    media_type = request.args.get('type', None)
+    
+    try:
+        media_list = firebase.get_trip_media(user_id, trip_id, media_type)
+        return jsonify({'success': True, 'media': media_list})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération médias du voyage: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - GESTION DES HÔTELS
+# ============================================
+
+@bp.route('/api/hotels', methods=['GET'])
+@login_required
+def api_get_hotels():
+    """API: Récupère tous les hôtels de la banque avec filtrage optionnel par partenaires"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # ⭐ PHASE 6: Filtrage par partenaires
+    partners_filter = request.args.get('partners', None)
+    if partners_filter:
+        partner_ids = [p.strip() for p in partners_filter.split(',') if p.strip()]
+    else:
+        partner_ids = None
+    
+    try:
+        hotels = firebase.get_hotels(user_id, partner_ids=partner_ids)
+        return jsonify({'success': True, 'hotels': hotels})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération hôtels: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/search', methods=['GET'])
+@login_required
+def api_search_hotels():
+    """API: Recherche des hôtels"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    query = request.args.get('q', '')
+    city = request.args.get('city', None)
+    
+    try:
+        hotels = firebase.search_hotels(user_id, query, city)
+        return jsonify({'success': True, 'hotels': hotels})
+    except Exception as e:
+        current_app.logger.error(f"Erreur recherche hôtels: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels', methods=['POST'])
+@login_required
+def api_create_hotel():
+    """API: Crée un nouvel hôtel"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+
+    # Validation des champs requis
+    required_fields = ['name', 'city']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+
+    firebase = get_firebase_service()
+
+    try:
+        # Vérifie si l'hôtel existe déjà (par Google Place ID)
+        google_place_id = data.get('googlePlaceId')
+        if google_place_id:
+            existing = firebase.get_hotel_by_google_place_id(user_id, google_place_id)
+            if existing:
+                return jsonify({
+                    'error': 'Cet hôtel existe déjà dans la banque',
+                    'existing_hotel': existing
+                }), 409
+
+        # Téléchargement automatique des photos Google si demandé
+        photos = []
+        if data.get('downloadGooglePhotos', False):
+            try:
+                import requests
+                from datetime import datetime
+                google_api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+                hotel_name = data.get('name')
+                hotel_city = data.get('city')
+                
+                # Recherche de l'hôtel sur Google Maps
+                search_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json'
+                search_params = {
+                    'input': f"{hotel_name}, {hotel_city}",
+                    'inputtype': 'textquery',
+                    'fields': 'place_id',
+                    'key': google_api_key
+                }
+                
+                search_response = requests.get(search_url, params=search_params, timeout=10)
+                search_data = search_response.json()
+                
+                if search_data.get('status') == 'OK' and search_data.get('candidates'):
+                    place_id = search_data['candidates'][0]['place_id']
+                    
+                    # Récupère les photos
+                    details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+                    details_params = {
+                        'place_id': place_id,
+                        'fields': 'name,photos',
+                        'key': google_api_key
+                    }
+                    
+                    details_response = requests.get(details_url, params=details_params, timeout=10)
+                    details_data = details_response.json()
+                    
+                    if details_data.get('status') == 'OK':
+                        photos_data = details_data.get('result', {}).get('photos', [])[:5]
+                        
+                        # Vérifie Firebase Storage
+                        firebase_storage = firebase.get_storage()
+                        if not firebase_storage:
+                            raise Exception("Firebase Storage non disponible")
+                        
+                        # Télécharge CHAQUE photo depuis Google ET upload vers Firebase Storage
+                        for idx, photo in enumerate(photos_data):
+                            photo_reference = photo.get('photo_reference')
+                            if photo_reference:
+                                # URL Google de la photo
+                                google_photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={photo_reference}&key={google_api_key}"
+                                
+                                # Télécharge la photo depuis Google
+                                photo_response = requests.get(google_photo_url, timeout=30)
+                                photo_response.raise_for_status()
+                                
+                                # Prépare le stockage dans Firebase
+                                timestamp = int(datetime.now().timestamp() * 1000)
+                                file_name = f"{timestamp}_google_{idx + 1}.jpg"
+                                hotel_slug = hotel_name.lower().replace(' ', '_').replace("'", '')
+                                hotel_slug = ''.join(c for c in hotel_slug if c.isalnum() or c == '_')
+                                
+                                storage_path = f"users/{user_id}/hotels/{hotel_slug}/{file_name}"
+                                
+                                # Upload vers Firebase Storage
+                                blob = firebase_storage.blob(storage_path)
+                                blob.upload_from_string(
+                                    photo_response.content,
+                                    content_type='image/jpeg'
+                                )
+                                blob.make_public()
+                                firebase_url = blob.public_url
+                                
+                                # Ajoute l'URL FIREBASE (pas Google!)
+                                photos.append(firebase_url)
+                                
+                                current_app.logger.info(f"✅ Photo {idx + 1}/{len(photos_data)} téléchargée et stockée dans Firebase pour {hotel_name}")
+                        
+                        current_app.logger.info(f"✅ {len(photos)} photo(s) téléchargées et stockées dans Firebase Storage pour {hotel_name}")
+            except Exception as photo_error:
+                current_app.logger.error(f"❌ Erreur téléchargement photos: {photo_error}")
+                import traceback
+                current_app.logger.error(traceback.format_exc())
+                # Continue sans photos en cas d'erreur
+
+        # Ajoute les photos FIREBASE dans les données
+        if photos:
+            data['photos'] = photos
+
+        hotel_id = firebase.create_hotel(user_id, data)
+
+        if hotel_id:
+            hotel = firebase.get_hotel(user_id, hotel_id)
+            return jsonify({'success': True, 'hotel_id': hotel_id, 'hotel': hotel})
+        else:
+            return jsonify({'error': 'Erreur lors de la création de l\'hôtel'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur création hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>', methods=['GET'])
+@login_required
+def api_get_hotel(hotel_id):
+    """API: Récupère un hôtel spécifique"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        hotel = firebase.get_hotel(user_id, hotel_id)
+        if hotel:
+            # Récupère aussi les reviews
+            reviews = firebase.get_hotel_reviews(user_id, hotel_id)
+            hotel['reviews'] = reviews
+            return jsonify({'success': True, 'hotel': hotel})
+        else:
+            return jsonify({'error': 'Hôtel non trouvé'}), 404
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>', methods=['PUT'])
+@login_required
+def api_update_hotel(hotel_id):
+    """API: Met à jour un hôtel"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.update_hotel(user_id, hotel_id, data)
+        if success:
+            hotel = firebase.get_hotel(user_id, hotel_id)
+            return jsonify({'success': True, 'hotel': hotel})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur MAJ hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>', methods=['DELETE'])
+@login_required
+def api_delete_hotel(hotel_id):
+    """API: Supprime un hôtel"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_hotel(user_id, hotel_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Impossible de supprimer l\'hôtel (peut-être utilisé dans des voyages)'}), 400
+    except Exception as e:
+        current_app.logger.error(f"Erreur suppression hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/stats', methods=['GET'])
+@login_required
+def api_get_hotel_stats(hotel_id):
+    """API: Récupère les statistiques d'un hôtel"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        hotel = firebase.get_hotel(user_id, hotel_id)
+        if not hotel:
+            return jsonify({'error': 'Hôtel non trouvé'}), 404
+        
+        stats = {
+            'usageStats': hotel.get('usageStats', {}),
+            'ratings': hotel.get('ratings', {}),
+            'totalReviews': hotel.get('ratings', {}).get('totalRatings', 0)
+        }
+        
+        return jsonify({'success': True, 'stats': stats})
+    except Exception as e:
+        current_app.logger.error(f"Erreur stats hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/photos', methods=['GET'])
+@login_required
+def api_get_hotel_photos(hotel_id):
+    """API: Récupère les photos d'un hôtel par son ID (PHASE 4)"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+
+    try:
+        photos = firebase.get_hotel_photos_by_id(user_id, hotel_id)
+        return jsonify({'success': True, 'photos': photos, 'count': len(photos)})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération photos hôtel: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/upload-photos', methods=['POST'])
+def api_upload_hotel_photos(hotel_id):
+    """API: Upload manuel de photos pour un hôtel"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère les fichiers uploadés
+        if 'photos' not in request.files:
+            return jsonify({'success': False, 'error': 'Aucune photo fournie'}), 400
+        
+        files = request.files.getlist('photos')
+        
+        if not files or len(files) == 0:
+            return jsonify({'success': False, 'error': 'Aucune photo fournie'}), 400
+        
+        # Récupère l'hôtel pour avoir son nom
+        hotel = firebase.get_hotel(user_id, hotel_id)
+        if not hotel:
+            return jsonify({'success': False, 'error': 'Hôtel non trouvé'}), 404
+        
+        hotel_name = hotel.get('name', 'hotel')
+        
+        # Upload chaque photo
+        uploaded_urls = []
+        timestamp = int(time.time())
+        
+        for i, file in enumerate(files, 1):
+            if file and file.filename:
+                # Génère un nom de fichier unique
+                ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
+                filename = f"{timestamp}_manual_{i}.{ext}"
+                storage_path = f"users/{user_id}/hotels/{hotel_name.replace(' ', '_').lower()}/{filename}"
+                
+                # Upload vers Firebase Storage
+                blob = firebase.bucket.blob(storage_path)
+                blob.upload_from_file(file, content_type=file.content_type or 'image/jpeg')
+                blob.make_public()
+                
+                uploaded_urls.append(blob.public_url)
+                current_app.logger.info(f"✅ Photo uploadée: {blob.public_url}")
+        
+        # Met à jour le document hotel avec les nouvelles photos
+        hotel_ref = firebase.db.collection('artifacts').document(firebase.app_id).collection('users').document(user_id).collection('hotels').document(hotel_id)
+        
+        # Récupère les photos existantes
+        existing_photos = hotel.get('photos', [])
+        
+        # Ajoute les nouvelles photos
+        all_photos = existing_photos + uploaded_urls
+        
+        # Met à jour Firestore
+        hotel_ref.update({'photos': all_photos})
+        
+        return jsonify({
+            'success': True,
+            'uploaded_count': len(uploaded_urls),
+            'total_photos': len(all_photos),
+            'message': f'{len(uploaded_urls)} photo(s) uploadée(s) avec succès'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"❌ Erreur upload photos hôtel: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - REVIEWS D'HÔTELS (CLIENT)
+# ============================================
+
+@bp.route('/api/hotels/<hotel_id>/reviews', methods=['GET'])
+def api_get_hotel_reviews(hotel_id):
+    """API: Récupère les reviews d'un hôtel (public)"""
+    # Pour l'instant, on utilise le user_id fixe
+    user_id = 'sam-user'
+    firebase = get_firebase_service()
+    
+    try:
+        reviews = firebase.get_hotel_reviews(user_id, hotel_id)
+        return jsonify({'success': True, 'reviews': reviews})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération reviews: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/reviews', methods=['POST'])
+def api_add_hotel_review(hotel_id):
+    """API: Ajoute une review pour un hôtel (client)"""
+    data = request.get_json()
+    
+    # Validation
+    required_fields = ['customerId', 'customerName', 'rating']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+    
+    # Valide la note (1-5)
+    rating = int(data.get('rating', 0))
+    if rating < 1 or rating > 5:
+        return jsonify({'error': 'La note doit être entre 1 et 5'}), 400
+    
+    # Pour l'instant, on utilise le user_id fixe
+    user_id = 'sam-user'
+    firebase = get_firebase_service()
+    
+    try:
+        # Vérifie si le client a déjà noté cet hôtel
+        existing = firebase.get_customer_review_for_hotel(user_id, hotel_id, data['customerId'])
+        if existing:
+            return jsonify({
+                'error': 'Vous avez déjà évalué cet hôtel',
+                'existing_review': existing
+            }), 409
+        
+        review_id = firebase.add_hotel_review(user_id, hotel_id, data)
+        
+        if review_id:
+            review = firebase.get_hotel_review(user_id, hotel_id, review_id)
+            return jsonify({'success': True, 'review_id': review_id, 'review': review})
+        else:
+            return jsonify({'error': 'Erreur lors de l\'ajout de l\'avis'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur ajout review: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/reviews/<review_id>', methods=['PUT'])
+def api_update_hotel_review(hotel_id, review_id):
+    """API: Met à jour une review"""
+    data = request.get_json()
+    
+    # Pour l'instant, on utilise le user_id fixe
+    user_id = 'sam-user'
+    firebase = get_firebase_service()
+    
+    try:
+        # Vérifie que la review existe et appartient au client
+        review = firebase.get_hotel_review(user_id, hotel_id, review_id)
+        if not review:
+            return jsonify({'error': 'Avis non trouvé'}), 404
+        
+        # TODO: Vérifier que c'est bien le client qui a créé l'avis
+        
+        success = firebase.update_hotel_review(user_id, hotel_id, review_id, data)
+        if success:
+            updated_review = firebase.get_hotel_review(user_id, hotel_id, review_id)
+            return jsonify({'success': True, 'review': updated_review})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur MAJ review: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/hotels/<hotel_id>/reviews/<review_id>', methods=['DELETE'])
+def api_delete_hotel_review(hotel_id, review_id):
+    """API: Supprime une review"""
+    # Pour l'instant, on utilise le user_id fixe
+    user_id = 'sam-user'
+    firebase = get_firebase_service()
+    
+    try:
+        # Vérifie que la review existe
+        review = firebase.get_hotel_review(user_id, hotel_id, review_id)
+        if not review:
+            return jsonify({'error': 'Avis non trouvé'}), 404
+        
+        # TODO: Vérifier que c'est bien le client qui a créé l'avis
+        
+        success = firebase.delete_hotel_review(user_id, hotel_id, review_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur suppression review: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - IMPORT EXCEL HÔTELS
+# ============================================
+
+@bp.route('/api/hotels/import-excel', methods=['POST'])
+@login_required
+def api_import_hotels_from_excel():
+    """API: Importe des hôtels depuis un fichier Excel avec parsing Gemini AI (Streaming)"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # Vérification du fichier Excel
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Aucun fichier fourni'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Nom de fichier vide'}), 400
+    
+    # Vérification de l'extension
+    if not file.filename.lower().endswith(('.xlsx', '.xls', '.csv')):
+        return jsonify({'success': False, 'error': 'Format de fichier invalide (xlsx, xls, csv uniquement)'}), 400
+    
+    # Récupération des paramètres
+    partner_id = request.form.get('partnerId')
+    if not partner_id:
+        return jsonify({'success': False, 'error': 'Partenaire requis'}), 400
+    
+    download_photos = request.form.get('downloadPhotos', 'false').lower() == 'true'
+    skip_duplicates = request.form.get('skipDuplicates', 'true').lower() == 'true'
+    
+    # Lecture du fichier en mémoire
+    try:
+        file_bytes = file.read()
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erreur lecture fichier: {str(e)}'}), 400
+
+    from app.services.gemini_service import parse_excel_file_with_gemini
+    from flask import Response, stream_with_context
+    import json
+    import queue
+    import threading
+    import requests
+    from datetime import datetime
+
+    
+    def generate():
+        try:
+            # 1. Parsing avec Gemini (Streaming de la progression)
+            yield json.dumps({'progress': 5, 'message': 'Lecture du fichier...'}) + '\n'
+            
+            q = queue.Queue()
+            
+            def worker():
+                try:
+                    def cb(msg, pct):
+                        q.put({'type': 'progress', 'message': msg, 'percent': pct})
+                        
+                    data = parse_excel_file_with_gemini(file_bytes, file.filename, progress_callback=cb)
+                    q.put({'type': 'result', 'data': data})
+                except Exception as e:
+                    q.put({'type': 'error', 'error': str(e)})
+            
+            t = threading.Thread(target=worker)
+            t.start()
+            
+            # Récupération des hôtels existants pour détection doublons
+            existing_hotels_map = {}
+            try:
+                all_hotels = firebase.get_hotels(user_id)
+                for h in all_hotels:
+                    key = (h.get('name', '').lower().strip(), h.get('city', '').lower().strip())
+                    existing_hotels_map[key] = h
+            except Exception as e:
+                current_app.logger.error(f"Erreur chargement cache hôtels: {e}")
+
+            hotels_data = None
+            
+            while True:
+                try:
+                    item = q.get(timeout=0.1) # Non-blocking wait
+                    if item['type'] == 'progress':
+                        yield json.dumps({'progress': item['percent'], 'message': item['message']}) + '\n'
+                    elif item['type'] == 'result':
+                        hotels_data = item['data']
+                        break
+                    elif item['type'] == 'error':
+                        yield json.dumps({'error': item['error']}) + '\n'
+                        return
+                except queue.Empty:
+                    continue
+            
+            t.join()
+            
+            if not hotels_data:
+                return
+
+            yield json.dumps({'progress': 80, 'message': 'Sauvegarde des données...'}) + '\n'
+            
+            # 2. Sauvegarde des hôtels (Streaming)
+            imported_count = 0
+            duplicates_count = 0
+            updated_count = 0
+            errors_count = 0
+            
+            total_hotels = len(hotels_data)
+            
+            for i, hotel_data in enumerate(hotels_data):
+                # Progression sauvegarde
+                if i % 5 == 0:
+                    pct = 80 + int((i / total_hotels) * 15)
+                    yield json.dumps({'progress': pct, 'message': f'Sauvegarde hôtel {i+1}/{total_hotels}...'}) + '\n'
+                
+                try:
+                    name = hotel_data.get('name', '').strip()
+                    city = hotel_data.get('city', '').strip()
+                    key = (name.lower(), city.lower())
+                    
+                    hotel_id = None
+                    existing = existing_hotels_map.get(key)
+                    
+                    if skip_duplicates and existing:
+                        duplicates_count += 1
+                        hotel_id = existing['id']
+                        
+                        # UPDATE: On met à jour le partenaire si pas déjà présent
+                        updates = {}
+                        if partner_id:
+                            current_partners = existing.get('partnerIds', [])
+                            if partner_id not in current_partners:
+                                current_partners.append(partner_id)
+                                updates['partnerIds'] = current_partners
+                        
+                        if updates:
+                            firebase.update_hotel(user_id, hotel_id, updates)
+                            updated_count += 1
+                            
+                    else:
+                        # CREATE
+                        hotel_dict = {
+                            'name': name,
+                            'city': city,
+                            'address': hotel_data.get('address'),
+                            'description': hotel_data.get('description'),
+                            'type': hotel_data.get('type', 'hotel'),
+                            'partnerIds': [partner_id] if partner_id else [],
+                            'contact': {
+                                'phone': hotel_data.get('phone'),
+                                'website': hotel_data.get('website')
+                            },
+                            'photos': []
+                        }
+                        
+                        hotel_id = firebase.create_hotel(user_id, hotel_dict)
+                        imported_count += 1
+                        
+                        # Ajout au cache pour les doublons INTRA-fichier
+                        hotel_dict['id'] = hotel_id
+                        existing_hotels_map[key] = hotel_dict
+
+                    # Téléchargement photos (si demandé)
+                    if download_photos and hotel_data.get('website'):
+                        try:
+                            # Vérifie si l'hôtel a déjà des photos (pour éviter de re-télécharger inutilement si update)
+                            current_hotel = existing_hotels_map.get(key)
+                            if current_hotel and current_hotel.get('photos') and len(current_hotel.get('photos')) > 0:
+                                # Déjà des photos, on skip pour économiser l'API
+                                continue
+                                
+                            # 1. Recherche du Place ID
+                            search_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json'
+                            search_params = {
+                                'input': f"{name} {city}",
+                                'inputtype': 'textquery',
+                                'fields': 'place_id',
+                                'key': current_app.config.get('GOOGLE_MAPS_API_KEY')
+                            }
+                            
+                            response = requests.get(search_url, params=search_params, timeout=10)
+                            search_results = response.json()
+                            
+                            if search_results.get('status') == 'OK' and search_results.get('candidates'):
+                                place_id = search_results['candidates'][0]['place_id']
+                                
+                                # 2. Récupération des photos (max 5)
+                                details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+                                details_params = {
+                                    'place_id': place_id,
+                                    'fields': 'photos',
+                                    'key': current_app.config.get('GOOGLE_MAPS_API_KEY')
+                                }
+                                
+                                details_response = requests.get(details_url, params=details_params, timeout=10)
+                                details_data = details_response.json()
+                                
+                                if details_data.get('status') == 'OK' and 'photos' in details_data.get('result', {}):
+                                    photos = details_data['result']['photos'][:5]
+                                    photo_urls = []
+                                    
+                                    for idx, photo in enumerate(photos):
+                                        photo_reference = photo['photo_reference']
+                                        photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={photo_reference}&key={current_app.config.get('GOOGLE_MAPS_API_KEY')}"
+                                        
+                                        # Téléchargement de l'image
+                                        img_response = requests.get(photo_url, timeout=20)
+                                        if img_response.status_code == 200:
+                                            # Upload vers Firebase Storage
+                                            timestamp = int(datetime.now().timestamp() * 1000)
+                                            # Nom de fichier sécurisé
+                                            safe_name = "".join([c for c in name if c.isalnum()]).lower()
+                                            file_path = f"users/{user_id}/hotels/{safe_name}_{timestamp}_{idx}.jpg"
+                                            
+                                            public_url = firebase.upload_file_from_bytes(
+                                                img_response.content, 
+                                                file_path, 
+                                                content_type='image/jpeg'
+                                            )
+                                            
+                                            if public_url:
+                                                photo_urls.append(public_url)
+                                    
+                                    # 3. Mise à jour de l'hôtel avec les URLs des photos
+                                    if photo_urls:
+                                        # On fusionne avec les existantes si il y en a (cas rare ici car on a checké avant)
+                                        current_photos = []
+                                        if existing:
+                                            # Re-fetch pour être sûr ou utiliser cache
+                                            current_photos = existing.get('photos', [])
+                                            
+                                        new_photos_list = current_photos + photo_urls
+                                        # Update dans Firebase
+                                        firebase.update_hotel(user_id, hotel_id, {'photos': new_photos_list})
+                                        # Update cache
+                                        if existing:
+                                            existing['photos'] = new_photos_list
+                                            
+                                        current_app.logger.info(f"📸 {len(photo_urls)} photos téléchargées pour {name}")
+                            
+                        except Exception as e:
+                            current_app.logger.error(f"⚠️ Erreur téléchargement photos pour {name}: {e}")
+                            pass
+                        
+                except Exception as e:
+                    current_app.logger.error(f"Erreur import hôtel {hotel_data.get('name')}: {e}")
+                    errors_count += 1
+            
+            yield json.dumps({'progress': 100, 'message': 'Terminé !', 'result': {
+                'success': True,
+                'imported': imported_count,
+                'duplicates': duplicates_count,
+                'errors': errors_count
+            }}) + '\n'
+            
+        except Exception as e:
+            current_app.logger.error(f"Erreur globale import: {e}")
+            yield json.dumps({'error': str(e)}) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/json')
+
+
+
+# ============================================
+# API ROUTES - GESTION DES RESTAURANTS
+# ============================================
+
+@bp.route('/restaurants')
+@login_required
+def restaurants():
+    """Page de gestion de la banque de restaurants"""
+    return render_template('admin/restaurants.html')
+
+
+@bp.route('/api/restaurants', methods=['GET'])
+@login_required
+def api_get_restaurants():
+    """API: Récupère tous les restaurants de la banque avec filtrage optionnel par partenaires"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    # ⭐ PHASE 6: Filtrage par partenaires
+    partners_filter = request.args.get('partners', None)
+    if partners_filter:
+        partner_ids = [p.strip() for p in partners_filter.split(',') if p.strip()]
+    else:
+        partner_ids = None
+    
+    try:
+        restaurants = firebase.get_restaurants(user_id, partner_ids=partner_ids)
+        return jsonify({'success': True, 'restaurants': restaurants})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération restaurants: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/restaurants/search', methods=['GET'])
+@login_required
+def api_search_restaurants():
+    """API: Recherche des restaurants"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    query = request.args.get('q', '')
+    city = request.args.get('city', None)
+    
+    try:
+        restaurants = firebase.search_restaurants(user_id, query, city)
+        return jsonify({'success': True, 'restaurants': restaurants})
+    except Exception as e:
+        current_app.logger.error(f"Erreur recherche restaurants: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/restaurants', methods=['POST'])
+@login_required
+def api_create_restaurant():
+    """API: Crée un nouveau restaurant"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+
+    # Validation des champs requis
+    required_fields = ['name', 'city']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Le champ {field} est requis'}), 400
+
+    firebase = get_firebase_service()
+
+    try:
+        restaurant_id = firebase.create_restaurant(user_id, data)
+
+        if restaurant_id:
+            restaurant = firebase.get_restaurant(user_id, restaurant_id)
+            return jsonify({'success': True, 'restaurant_id': restaurant_id, 'restaurant': restaurant})
+        else:
+            return jsonify({'error': 'Erreur lors de la création du restaurant'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur création restaurant: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/restaurants/<restaurant_id>', methods=['GET'])
+@login_required
+def api_get_restaurant(restaurant_id):
+    """API: Récupère un restaurant spécifique"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        restaurant = firebase.get_restaurant(user_id, restaurant_id)
+        if restaurant:
+            return jsonify({'success': True, 'restaurant': restaurant})
+        else:
+            return jsonify({'error': 'Restaurant non trouvé'}), 404
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération restaurant: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/restaurants/<restaurant_id>', methods=['PUT'])
+@login_required
+def api_update_restaurant(restaurant_id):
+    """API: Met à jour un restaurant"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.update_restaurant(user_id, restaurant_id, data)
+        if success:
+            restaurant = firebase.get_restaurant(user_id, restaurant_id)
+            return jsonify({'success': True, 'restaurant': restaurant})
+        else:
+            return jsonify({'error': 'Erreur lors de la mise à jour'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur MAJ restaurant: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/restaurants/<restaurant_id>', methods=['DELETE'])
+@login_required
+def api_delete_restaurant(restaurant_id):
+    """API: Supprime un restaurant"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.delete_restaurant(user_id, restaurant_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur suppression restaurant: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ROUTES - SUGGESTIONS DE RESTAURANTS (PAR JOUR)
+# ============================================
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>/restaurant-suggestions', methods=['GET'])
+@login_required
+def api_get_day_restaurant_suggestions(trip_id, day_id):
+    """API: Récupère les suggestions de restaurants pour un jour"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        suggestions = firebase.get_day_restaurant_suggestions(user_id, trip_id, day_id)
+        return jsonify({'success': True, 'suggestions': suggestions})
+    except Exception as e:
+        current_app.logger.error(f"Erreur récupération suggestions: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>/restaurant-suggestions', methods=['POST'])
+@login_required
+def api_add_restaurant_suggestion(trip_id, day_id):
+    """API: Ajoute une suggestion de restaurant à un jour"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    restaurant_id = data.get('restaurantId')
+    if not restaurant_id:
+        return jsonify({'error': 'restaurantId requis'}), 400
+    
+    firebase = get_firebase_service()
+    
+    try:
+        # Récupère le jour pour obtenir la date (optionnel)
+        day = firebase.get_day(user_id, trip_id, day_id)
+        day_date = day.get('date') if day else None
+        
+        suggestion_id = firebase.add_restaurant_suggestion(
+            user_id, trip_id, day_id, restaurant_id, day_date
+        )
+        
+        if suggestion_id:
+            # Récupère la suggestion complète avec les infos du restaurant
+            suggestions = firebase.get_day_restaurant_suggestions(user_id, trip_id, day_id)
+            new_suggestion = next((s for s in suggestions if s['id'] == suggestion_id), None)
+            
+            return jsonify({
+                'success': True,
+                'suggestion_id': suggestion_id,
+                'suggestion': new_suggestion
+            })
+        else:
+            return jsonify({'error': 'Erreur lors de l\'ajout de la suggestion'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur ajout suggestion: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/trips/<trip_id>/days/<day_id>/restaurant-suggestions/<suggestion_id>', methods=['DELETE'])
+@login_required
+def api_remove_restaurant_suggestion(trip_id, day_id, suggestion_id):
+    """API: Retire une suggestion de restaurant"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    try:
+        success = firebase.remove_restaurant_suggestion(user_id, trip_id, day_id, suggestion_id)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Erreur lors de la suppression'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Erreur suppression suggestion: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ============================================
+# PUBLICATION ROUTES
+# ============================================
+
+@bp.route('/trips/<trip_id>/publish', methods=['GET'])
+@login_required
+def publish_trip_view(trip_id):
+    """Page de préparation à la publication"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    trip = firebase.get_trip(user_id, trip_id)
+    if not trip:
+        abort(404)
+        
+    # Get days to generate teaser
+    days = firebase.get_trip_days(user_id, trip_id)
+    trip['days'] = days
+    
+    # Generate content
+    from app.services.gemini_service import generate_trip_teaser
+    teaser_text = generate_trip_teaser(trip)
+    
+    return render_template('admin/trip_publish.html', trip=trip, teaser_text=teaser_text)
+
+
+@bp.route('/trips/<trip_id>/publish', methods=['POST'])
+@login_required
+def publish_trip_action(trip_id):
+    """Action de publication"""
+    print(f"DEBUG: Starting publish action for trip {trip_id}", flush=True)
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    form_data = request.form
+    
+    # 1. Update/Create Published Record
+    publish_data = {
+        'originalTripId': trip_id,
+        'title': form_data.get('title'),
+        'description': form_data.get('teaserText'), # We map teaserText to description for public view
+        'teaserText': form_data.get('teaserText'),
+        'pricePerPerson': float(form_data.get('price', 0)),
+        'slug': form_data.get('slug'),
+        'isActive': True,
+        'publishedAt': time.time(),
+        'mapImage': '' # Will be generated below from days
+    }
+    
+    # Get original trip to copy images etc
+    trip = firebase.get_trip(user_id, trip_id)
+    if trip:
+        publish_data['name'] = trip.get('name', '') # Ensure name is present
+        publish_data['coverImage'] = trip.get('coverImage', '')
+        # Fallback to trip gallery if needed, but for now take what's in DB
+        publish_data['gallery'] = trip.get('gallery', [])
+        publish_data['photos'] = trip.get('gallery', []) # Map gallery to photos for template compatibility
+        
+        days = firebase.get_trip_days(user_id, trip_id)
+
+        # Stats Auto-Calculation
+        calc_distance = 0
+        calc_elevation = 0
+        
+        # Map Path Construction
+        map_points = []
+        import requests
+        from app.services.gpx_service import extract_simplified_path
+        
+        has_gpx_path = False
+        
+        for d in days:
+            # Stats
+            try:
+                calc_distance += float(d.get('distance', 0))
+                calc_elevation += float(d.get('elevation', 0))
+            except:
+                pass
+            
+            # Map Points: Try GPX first
+            gpx_url = d.get('gpxUrl')
+            print(f"DEBUG: Day {d.get('dayName')} GPX URL: {gpx_url}")
+            if gpx_url:
+                try:
+                    resp = requests.get(gpx_url, timeout=10)
+                    print(f"DEBUG: Fetch status: {resp.status_code}, Content-Length: {len(resp.content)}")
+                    if resp.status_code == 200:
+                        # Extract ~80 points per day to keep URL length safe
+                        day_points = extract_simplified_path(resp.content, max_points=60)
+                        print(f"DEBUG: Extracted {len(day_points)} points")
+                        if day_points:
+                            map_points.extend(day_points)
+                            has_gpx_path = True
+                            continue # Skip fallback if GPX worked
+                except Exception as e:
+                    print(f"Failed to fetch/parse GPX for map: {e}")
+
+            # Fallback: Start Point if no GPX
+            sp = d.get('startPoint')
+            if sp and isinstance(sp, dict):
+                lat = sp.get('lat') or sp.get('latitude')
+                lng = sp.get('lng') or sp.get('longitude')
+                if lat and lng:
+                     map_points.append(f"{lat},{lng}")
+                    
+        # Add End Point of last day if available
+        if days:
+            ep = days[-1].get('endPoint')
+            if ep and isinstance(ep, dict):
+                lat = ep.get('lat') or ep.get('latitude')
+                lng = ep.get('lng') or ep.get('longitude')
+                if lat and lng:
+                     map_points.append(f"{lat},{lng}")
+
+        # Generate Map URL
+        api_key = current_app.config.get('GOOGLE_MAPS_API_KEY', '')
+        if map_points:
+            path_str = "|".join(map_points)
+            publish_data['mapImage'] = f"https://maps.googleapis.com/maps/api/staticmap?size=600x400&maptype=terrain&path=color:0xd946efff|weight:4|{path_str}&key={api_key}"
+        else:
+            # Fallback
+            publish_data['mapImage'] = 'https://maps.googleapis.com/maps/api/staticmap?center=France&zoom=5&size=600x400&key=' + api_key
+
+        # Add missing stats (Prefer Trip Data, fallback to Calculated)
+        publish_data['totalDistance'] = float(trip.get('totalDistance', 0) or calc_distance)
+        publish_data['totalElevation'] = float(trip.get('totalElevation', 0) or calc_elevation)
+        
+        # Difficulty Level from Form
+        form_difficulty = int(form_data.get('difficultyLevel', 3))
+        publish_data['difficultyLevel'] = form_difficulty
+        
+        publish_data['highlights'] = trip.get('highlights', [])
+        
+        # Public Days (Sanitized)
+        public_days = []
+        for d in days:
+             public_days.append({
+                 'dayName': d.get('dayName'),
+                 'city': d.get('city'),
+                 'startPoint': d.get('startPoint'),
+                 'endPoint': d.get('endPoint'),
+                 'distance': d.get('distance'),
+                 'elevation': d.get('elevation'),
+                 'gpxUrl': d.get('gpxUrl'), # ⭐ AJOUT : URL du fichier GPX
+                 'pois': d.get('pois', [])
+             })
+        publish_data['days'] = public_days
+        publish_data['partnerIds'] = trip.get('partnerIds', [])
+        
+    firebase.update_published_trip(publish_data['slug'], publish_data)
+    
+    # 2. Update Internal Trip Status AND Stats
+    internal_update = {
+        'isPublished': True, 
+        'publishedSlug': publish_data['slug'],
+        'difficultyLevel': publish_data['difficultyLevel']
+    }
+    
+    # Only update internal stats if they were effectively zero/missing
+    if not trip.get('totalDistance'):
+        internal_update['totalDistance'] = publish_data['totalDistance']
+    if not trip.get('totalElevation'):
+        internal_update['totalElevation'] = publish_data['totalElevation']
+        
+    firebase.update_trip(user_id, trip_id, internal_update)
+    
+    return redirect(url_for('admin.dashboard'))
+
+
+@bp.route('/trips/<trip_id>/unpublish', methods=['POST'])
+@login_required
+def unpublish_trip_action(trip_id):
+    """Dépublier un voyage"""
+    user_id = get_current_user_id()
+    firebase = get_firebase_service()
+    
+    trip = firebase.get_trip(user_id, trip_id)
+    if trip and trip.get('publishedSlug'):
+        firebase.update_published_trip(trip['publishedSlug'], {'isActive': False})
+        
+    firebase.update_trip(user_id, trip_id, {'isPublished': False})
+    
+    return jsonify({'success': True})

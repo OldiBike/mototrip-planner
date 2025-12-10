@@ -22,20 +22,20 @@ function setupEventListeners() {
     document.getElementById('add-customer-btn').addEventListener('click', () => {
         openCustomerModal();
     });
-    
+
     // Formulaire client
     document.getElementById('customer-form').addEventListener('submit', handleCustomerSubmit);
-    
+
     // Boutons modal
     document.getElementById('cancel-customer-btn').addEventListener('click', () => {
         toggleModal(document.getElementById('customer-modal'), false);
     });
-    
+
     // Modale de suppression
     document.getElementById('cancel-delete-btn').addEventListener('click', () => {
         toggleModal(document.getElementById('delete-confirm-modal'), false);
     });
-    
+
     document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
 }
 
@@ -63,18 +63,18 @@ function renderCustomers() {
     const container = document.getElementById('customers-table-container');
     const tbody = document.getElementById('customers-list');
     const noCustomersMsg = document.getElementById('no-customers-message');
-    
+
     loading.classList.add('hidden');
     container.classList.remove('hidden');
-    
+
     if (customers.length === 0) {
         tbody.innerHTML = '';
         noCustomersMsg.classList.remove('hidden');
         return;
     }
-    
+
     noCustomersMsg.classList.add('hidden');
-    
+
     tbody.innerHTML = customers.map(customer => `
         <tr class="border-b border-gray-200 hover:bg-gray-50">
             <td class="px-4 py-3">
@@ -104,7 +104,7 @@ function renderCustomers() {
             </td>
         </tr>
     `).join('');
-    
+
     // Attache les event listeners
     document.querySelectorAll('.edit-customer-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -113,7 +113,7 @@ function renderCustomers() {
             if (customer) openCustomerModal(customer);
         });
     });
-    
+
     document.querySelectorAll('.delete-customer-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const customerId = e.currentTarget.dataset.customerId;
@@ -131,15 +131,26 @@ function openCustomerModal(customer = null) {
     const modal = document.getElementById('customer-modal');
     const form = document.getElementById('customer-form');
     const title = document.getElementById('modal-title');
-    
+
     // Reset le formulaire
     form.reset();
-    
+
     if (customer) {
         // Mode édition
         title.textContent = 'Modifier le client';
         document.getElementById('customer-id').value = customer.id;
-        document.getElementById('customer-name').value = customer.name;
+
+        // Gestion rétro-compatible du nom
+        let firstName = customer.firstName || '';
+        let lastName = customer.lastName || '';
+        if (!firstName && !lastName && customer.name) {
+            const parts = customer.name.split(' ');
+            if (parts.length > 0) firstName = parts[0];
+            if (parts.length > 1) lastName = parts.slice(1).join(' ');
+        }
+
+        document.getElementById('customer-firstname').value = firstName;
+        document.getElementById('customer-lastname').value = lastName;
         document.getElementById('customer-email').value = customer.email;
         document.getElementById('customer-phone').value = customer.phone;
         document.getElementById('customer-address').value = customer.address || '';
@@ -148,7 +159,7 @@ function openCustomerModal(customer = null) {
         title.textContent = 'Nouveau Client';
         document.getElementById('customer-id').value = '';
     }
-    
+
     toggleModal(modal, true);
 }
 
@@ -157,15 +168,16 @@ function openCustomerModal(customer = null) {
  */
 async function handleCustomerSubmit(e) {
     e.preventDefault();
-    
+
     const customerId = document.getElementById('customer-id').value;
     const customerData = {
-        name: document.getElementById('customer-name').value.trim(),
+        firstName: document.getElementById('customer-firstname').value.trim(),
+        lastName: document.getElementById('customer-lastname').value.trim(),
         email: document.getElementById('customer-email').value.trim(),
         phone: document.getElementById('customer-phone').value.trim(),
         address: document.getElementById('customer-address').value.trim()
     };
-    
+
     try {
         if (customerId) {
             // Mise à jour
@@ -182,7 +194,7 @@ async function handleCustomerSubmit(e) {
             });
             showToast('Client créé avec succès', 'success');
         }
-        
+
         toggleModal(document.getElementById('customer-modal'), false);
         loadCustomers();
     } catch (error) {
@@ -198,9 +210,9 @@ function openDeleteModal(customer) {
     customerToDelete = customer;
     const modal = document.getElementById('delete-confirm-modal');
     const message = document.getElementById('delete-confirm-message');
-    
+
     message.textContent = `Voulez-vous vraiment supprimer le client "${customer.name}" ? Tous ses voyages assignés et vouchers seront également supprimés.`;
-    
+
     toggleModal(modal, true);
 }
 
@@ -209,12 +221,12 @@ function openDeleteModal(customer) {
  */
 async function confirmDelete() {
     if (!customerToDelete) return;
-    
+
     try {
         await fetchAPI(`/admin/api/customers/${customerToDelete.id}`, {
             method: 'DELETE'
         });
-        
+
         showToast('Client supprimé avec succès', 'success');
         toggleModal(document.getElementById('delete-confirm-modal'), false);
         customerToDelete = null;

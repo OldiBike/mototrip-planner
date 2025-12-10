@@ -530,13 +530,29 @@ class FirebaseService:
             return False
     
     def update_published_trip(self, slug: str, data: Dict) -> bool:
-        """Met à jour un voyage publié"""
+        """Met à jour (ou crée) un voyage publié"""
         try:
-            self.db.collection(f'artifacts/{self.app_id}/publishedTrips').document(slug).update(data)
+            self.db.collection(f'artifacts/{self.app_id}/publishedTrips').document(slug).set(data, merge=True)
             return True
         except Exception as e:
             print(f"Erreur lors de la mise à jour du voyage publié: {e}")
             return False
+
+    def find_booking_by_join_code(self, code: str) -> Optional[Dict]:
+        """Trouve une réservation via son code de groupe"""
+        try:
+            # Uppercase lookup
+            code = code.upper().strip()
+            bookings = self.db.collection(f'artifacts/{self.app_id}/bookings')\
+                .where('joinCode', '==', code).limit(1).stream()
+            for b in bookings:
+                data = b.to_dict()
+                data['id'] = b.id
+                return data
+            return None
+        except Exception as e:
+            print(f"Erreur recherche code groupe: {e}")
+            return None
     
     def delete_published_trip(self, slug: str) -> bool:
         """Supprime un voyage publié"""
@@ -992,6 +1008,33 @@ class FirebaseService:
             print(f"Erreur lors de l'upload du fichier GPX: {e}")
             return None
 
+    def upload_day_gpx_file(self, user_id: str, trip_id: str, day_id: str, 
+                          file_bytes: bytes, file_name: str) -> Optional[Dict]:
+        """Upload un fichier GPX pour une étape vers Firebase Storage"""
+        try:
+            from datetime import datetime
+            
+            # Prépare le chemin de stockage
+            timestamp = int(datetime.now().timestamp() * 1000)
+            safe_filename = file_name.replace(' ', '_')
+            storage_path = f"users/{user_id}/trips/{trip_id}/days/{day_id}/gpx/{timestamp}_{safe_filename}"
+            
+            # Upload vers Storage
+            blob = self.bucket.blob(storage_path)
+            blob.upload_from_string(file_bytes, content_type='application/gpx+xml')
+            blob.make_public()
+            download_url = blob.public_url
+            
+            return {
+                'downloadURL': download_url,
+                'fileName': file_name,
+                'storagePath': storage_path,
+                'uploadedAt': datetime.now().isoformat()
+            }
+        except Exception as e:
+            print(f"Erreur lors de l'upload du fichier GPX de l'étape: {e}")
+            return None
+
     # ============================================
     # GESTION DES USERS (AUTHENTIFICATION)
     # ============================================
@@ -1100,6 +1143,16 @@ class FirebaseService:
         except Exception as e:
             print(f"Erreur MAJ booking: {e}")
             return False
+
+    def get_all_bookings(self) -> List[Dict]:
+        """Récupère toutes les réservations"""
+        try:
+            from app.models import TripBooking
+            bookings = self.db.collection(f'artifacts/{self.app_id}/bookings').order_by('createdAt', direction=firestore.Query.DESCENDING).stream()
+            return [TripBooking.from_dict(b.id, b.to_dict()).to_dict() for b in bookings]
+        except Exception as e:
+            print(f"Erreur récupération all bookings: {e}")
+            return []
 
     # ============================================
     # GESTION DES PARTICIPANTS
@@ -1352,13 +1405,16 @@ class FirebaseService:
                     'currency': 'EUR'
                 },
                 
-                'photos': hotel_data.get('photos', []),
-                
-                'ratings': {
-                    'averageRating': 0.0,
-                    'totalRatings': 0,
-                    'lastRatingAt': None
-                },
+            'photos': hotel_data.get('photos', []),
+            'partnerIds': hotel_data.get('partnerIds', []),
+            'type': hotel_data.get('type', 'hotel'),
+            'description': hotel_data.get('description', ''),
+            
+            'ratings': {
+                'averageRating': 0.0,
+                'totalRatings': 0,
+                'lastRatingAt': None
+            },
                 
                 'usageStats': {
                     'usedInTrips': [],
@@ -1962,6 +2018,33 @@ class FirebaseService:
         except Exception as e:
             print(f"Erreur lors de la récupération des POIs: {e}")
             return []
+    
+    # ============================================
+    # GESTION DES GUIDES GPS (AI KNOWLEDGE BASE)
+    # ============================================
+
+    def get_gps_guide(self, key: str) -> Optional[Dict]:
+        """Récupère un guide GPS depuis Firestore"""
+        try:
+            doc = self.db.collection(f'artifacts/{self.app_id}/gpsGuides').document(key).get()
+            if doc.exists:
+                return doc.to_dict()
+            return None
+        except Exception as e:
+            print(f"Erreur lecture guide GPS: {e}")
+            return None
+
+    def save_gps_guide(self, key: str, data: Dict) -> bool:
+        """Sauvegarde un guide GPS généré par l'IA"""
+        try:
+            self.db.collection(f'artifacts/{self.app_id}/gpsGuides').document(key).set({
+                **data,
+                'updatedAt': firestore.SERVER_TIMESTAMP
+            })
+            return True
+        except Exception as e:
+            print(f"Erreur sauvegarde guide GPS: {e}")
+            return False
     
     def get_poi(self, poi_id: str) -> Optional[Dict]:
         """Récupère un POI spécifique"""

@@ -8,6 +8,16 @@ import uuid
 from app.services import FirebaseService, StripeService
 from app.config import Config
 
+# Theme Configuration
+THEMES = {
+    'yellow': {'main': '#F59E0B', 'light': '#FBBF24', 'dark': '#D97706', 'glow': 'rgba(245, 158, 11, 0.5)'},
+    'red': {'main': '#DC2626', 'light': '#EF4444', 'dark': '#B91C1C', 'glow': 'rgba(220, 38, 38, 0.5)'},
+    'blue_light': {'main': '#0EA5E9', 'light': '#38BDF8', 'dark': '#0284C7', 'glow': 'rgba(14, 165, 233, 0.5)'},
+    'blue_dark': {'main': '#2563EB', 'light': '#3B82F6', 'dark': '#1D4ED8', 'glow': 'rgba(37, 99, 235, 0.5)'},
+    'green': {'main': '#16A34A', 'light': '#22C55E', 'dark': '#15803D', 'glow': 'rgba(22, 163, 74, 0.5)'},
+    'pink': {'main': '#DB2777', 'light': '#EC4899', 'dark': '#BE185D', 'glow': 'rgba(219, 39, 119, 0.5)'}
+}
+
 bp = Blueprint('trips', __name__, url_prefix='/voyages')
 
 
@@ -41,7 +51,11 @@ def trip_detail(slug):
     # Incrémente le compteur de vues
     firebase.increment_trip_views(slug)
     
-    return render_template('trips/detail.html', trip=trip)
+    # Resolve Theme
+    theme_key = trip.get('themeColor', 'yellow')
+    theme = THEMES.get(theme_key, THEMES['yellow'])
+
+    return render_template('trips/detail_v2.html', trip=trip, theme=theme)
 
 
 @bp.route('/<slug>/book', methods=['POST'])
@@ -57,24 +71,46 @@ def book_trip(slug):
     
     # Récupère les données du formulaire
     email = request.form.get('email', '').strip().lower()
-    nb_participants = int(request.form.get('nb_participants', 1))
+    first_name = request.form.get('first_name', '').strip()
+    last_name = request.form.get('last_name', '').strip()
+    nb_pilots = int(request.form.get('nb_pilots', 1))
+    nb_passengers = int(request.form.get('nb_passengers', 0))
     start_date = request.form.get('start_date', '')
-    end_date = request.form.get('end_date', '')
+    # End date removed as per request
     
+    nb_participants = nb_pilots + nb_passengers
+
     # Validation
-    if not all([email, nb_participants, start_date, end_date]):
-        flash('Veuillez remplir tous les champs.', 'error')
+    if not all([email, first_name, last_name, nb_pilots, start_date]):
+        flash('Veuillez remplir tous les champs obligatoires.', 'error')
         return redirect(url_for('trips.trip_detail', slug=slug))
     
-    if nb_participants < 1 or nb_participants > 20:
-        flash('Nombre de participants invalide (1-20).', 'error')
+    if nb_pilots < 1 or nb_participants > 20:
+        flash('Nombre de participants invalide (Min 1 pilote, Max 20 total).', 'error')
         return redirect(url_for('trips.trip_detail', slug=slug))
+    
+    # Options Assurances
+    insurance_weather = request.form.get('insurance_weather') == 'on'
+    insurance_cancellation = request.form.get('insurance_cancellation') == 'on'
     
     # Calcul des montants
     price_per_person = trip.get('pricePerPerson', 0)
     total_amount = price_per_person * nb_participants
-    deposit_percentage = trip.get('depositPercentage', 30)
-    deposit_amount = (total_amount * deposit_percentage) / 100
+    
+    # Note: On pourrait ajouter le coût des assurances ici si défini
+    # if insurance_weather: total_amount += 40 * nb_participants
+    
+    deposit_type = trip.get('depositType', 'fixed_per_person')
+    deposit_value = float(trip.get('depositValue', 150))
+    
+    deposit_amount = 0
+    if deposit_type == 'percentage':
+        deposit_amount = total_amount * (deposit_value / 100)
+    elif deposit_type == 'fixed_total':
+        deposit_amount = deposit_value
+    else: # fixed_per_person
+        deposit_amount = deposit_value * nb_participants
+        
     remaining_amount = total_amount - deposit_amount
     
     # Création d'une pré-réservation (user temporaire)
@@ -82,8 +118,9 @@ def book_trip(slug):
     user_id = str(uuid.uuid4())
     user_data = {
         'email': email,
-        'firstName': '',
-        'lastName': '',
+        'firstName': first_name,
+        'lastName': last_name,
+        'name': f"{first_name} {last_name}".strip(),
         'phone': '',
         'passwordHash': None,  # Pas de mot de passe encore
         'role': 'customer',
@@ -100,21 +137,40 @@ def book_trip(slug):
     
     # Crée la réservation
     access_token = str(uuid.uuid4())
+    
+    # Calculate end date based on duration
+    # We don't have trip duration easily accessible here as explicit days count without parsing
+    # But usually trip has 'days' list. Let's try to infer if needed or just leave empty.
+    # User said "days are fixed", so start date implies end date.
+    
     booking_data = {
         'tripTemplateId': slug,
         'organizerUserId': user_id,
         'startDate': start_date,
-        'endDate': end_date,
+        # 'endDate': end_date, # Removed from form
         'totalParticipants': nb_participants,
+        'pilotsCount': nb_pilots,
+        'passengersCount': nb_passengers,
         'currentParticipants': 1,  # Seulement l'organisateur pour l'instant
         'totalAmount': total_amount,
         'depositAmount': deposit_amount,
         'remainingAmount': remaining_amount,
-        'paymentStatus': 'pending',
-        'stripeSessionId': '',
-        'stripePaymentIntentId': '',
+        'paymentStatus': 'pending', 
+        'leaderDetails': {
+            'email': email,
+            'firstName': first_name,
+            'lastName': last_name,
+            'phone': ''
+        },
+        'status': 'pending_deposit',  # En attente de l'acompte
+        'createdAt': datetime.now().isoformat(),
         'accessToken': access_token,
-        'status': 'pending'
+        'insuranceWeather': insurance_weather,
+        'insuranceCancellation': insurance_cancellation,
+        'options': {
+            'insuranceWeather': insurance_weather,
+            'insuranceCancellation': insurance_cancellation
+        }
     }
     
     booking_id = firebase.create_booking(booking_data)
@@ -127,8 +183,8 @@ def book_trip(slug):
     participant_data = {
         'bookingId': booking_id,
         'userId': user_id,
-        'firstName': '',
-        'lastName': '',
+        'firstName': first_name,
+        'lastName': last_name,
         'email': email,
         'phone': '',
         'role': 'organizer',

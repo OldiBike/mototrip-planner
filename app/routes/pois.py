@@ -108,23 +108,28 @@ def create_poi():
         category = request.form.get('category')
         
         # Validation
-        if not name or not city or not category:
+        if not name or not category:
             return jsonify({
                 'success': False,
-                'error': 'Champs requis manquants: name, city, category'
+                'error': 'Champs requis manquants: name, category'
             }), 400
         
         firebase = FirebaseService(Config.APP_ID)
         
         # Parse partnerIds depuis JSON string
+        # Parse partnerIds depuis JSON string
         import json
         partner_ids_str = request.form.get('partnerIds', '[]')
         partner_ids = json.loads(partner_ids_str) if partner_ids_str else []
         
+        # Parse tags
+        tags_str = request.form.get('tags', '')
+        tags = [tag.strip() for tag in tags_str.split(',') if tag.strip()]
+        
         # Prépare les données du POI
         poi_data = {
             'name': name,
-            'city': city,
+            'city': city or '', # Autorise vide
             'category': category,
             'coordinates': {},  # Sera rempli plus tard avec géolocalisation
             'address': request.form.get('address', ''),
@@ -134,6 +139,7 @@ def create_poi():
             'openingHours': request.form.get('openingHours', ''),
             'entryFee': request.form.get('entryFee'),
             'partnerIds': partner_ids,
+            'tags': tags,
             'photos': []
         }
         
@@ -208,8 +214,8 @@ def update_poi(poi_id):
         update_data = {}
         
         allowed_fields = ['name', 'city', 'category', 'coordinates', 'address', 
-                         'description', 'website', 'phone', 'openingHours', 
-                         'entryFee', 'partnerIds', 'photos']
+                          'description', 'website', 'phone', 'openingHours', 
+                          'entryFee', 'partnerIds', 'photos', 'tags']
         
         for field in allowed_fields:
             if field in data:

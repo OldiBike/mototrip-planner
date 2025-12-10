@@ -1,499 +1,387 @@
 {% extends "base.html" %}
 
-{% block title %}{{ customer.name }} - MotoTrip Planner{% endblock %}
+{% block title %}{{ customer.name }} - Dossier Client{% endblock %}
 
 {% block content %}
 <div class="container mx-auto p-4 md:p-8 max-w-7xl">
-    <!-- En-tête -->
-    <header class="mb-8">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-4xl font-bold text-gray-900">{{ customer.name }}</h1>
-                <p class="text-lg text-gray-600 mt-2">Fiche client</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <a href="{{ url_for('admin.customers') }}" class="text-sm text-blue-600 hover:text-blue-800">
-                    <i class="fas fa-arrow-left mr-1"></i>Retour aux Clients
-                </a>
-                <a href="{{ url_for('admin.logout') }}" class="text-sm text-red-600 hover:text-red-800">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
-                </a>
-            </div>
+    <!-- Breadcrumb / Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+            <a href="{{ url_for('admin.customers') }}"
+                class="text-gray-500 hover:text-gray-700 text-sm mb-2 inline-block">
+                <i class="fas fa-arrow-left mr-1"></i> Clients
+            </a>
+            <h1 class="text-3xl font-bold text-gray-900">Dossier Client</h1>
         </div>
-    </header>
+        <div class="flex gap-3">
+            <button id="assign-trip-btn"
+                class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 font-medium shadow-sm flex items-center transition-all">
+                <i class="fas fa-plane-departure mr-2"></i>Assigner un voyage
+            </button>
+            <button id="edit-customer-btn"
+                class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center">
+                <i class="fas fa-edit mr-2"></i>Modifier
+            </button>
+        </div>
+    </div>
 
-    <!-- Grille principale -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Colonne 1: Informations du client -->
-        <div class="lg:col-span-1">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Informations</h2>
-                    <button id="edit-customer-btn" class="text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                </div>
-                
-                <div class="space-y-3">
-                    <div>
-                        <p class="text-sm text-gray-600">Email</p>
-                        <p class="font-medium">{{ customer.email }}</p>
+    <div id="alerts-container"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+
+        <!-- LEFT SIDEBAR: PROFILE -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-6 text-center border-b border-gray-100">
+                    <div
+                        class="h-24 w-24 rounded-full bg-gradient-to-br from-indigo-100 to-blue-50 flex items-center justify-center text-indigo-600 text-3xl font-bold mx-auto mb-4 border-4 border-white shadow-sm">
+                        {{ customer.name[0] | upper }}
                     </div>
-                    <div>
-                        <p class="text-sm text-gray-600">Téléphone</p>
-                        <p class="font-medium">{{ customer.phone }}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-600">Adresse</p>
-                        <p class="font-medium">{{ customer.address or 'Non renseignée' }}</p>
-                    </div>
+                    <h2 class="text-xl font-bold text-gray-900">{{ customer.name }}</h2>
+                    <p class="text-sm text-gray-500 mt-1">Client depuis 2024</p>
                 </div>
-                
-                <div class="mt-6 pt-6 border-t border-gray-200">
-                    <button id="delete-customer-btn" class="w-full bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium">
-                        <i class="fas fa-trash mr-2"></i>Supprimer le client
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Colonne 2-3: Voyages et Vouchers -->
-        <div class="lg:col-span-2 space-y-6">
-            
-            <!-- Section Voyages Assignés -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Voyages Assignés</h2>
-                    <button id="assign-trip-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
-                        <i class="fas fa-plus mr-2"></i>Assigner un voyage
-                    </button>
-                </div>
-                
-                <div id="trips-list">
-                    {% if assigned_trips %}
-                        <div class="overflow-x-auto">
-                            <table class="w-full table-auto">
-                                <thead class="bg-gray-100">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Voyage</th>
-                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date début</th>
-                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date fin</th>
-                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for trip in assigned_trips %}
-                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
-                                        <td class="px-4 py-3">{{ trip.tripName }}</td>
-                                        <td class="px-4 py-3">{{ trip.startDate }}</td>
-                                        <td class="px-4 py-3">{{ trip.endDate }}</td>
-                                        <td class="px-4 py-3">
-                                            <button class="unassign-trip-btn text-red-600 hover:text-red-800" data-assignment-id="{{ trip.id }}">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                <div class="p-4 bg-gray-50">
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center text-gray-600">
+                            <div class="w-8 flex justify-center"><i class="fas fa-envelope text-gray-400"></i></div>
+                            <span class="truncate">{{ customer.email }}</span>
                         </div>
-                    {% else %}
-                        <p class="text-gray-500 text-center py-4">Aucun voyage assigné</p>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <!-- Section Vouchers Hôtels -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Vouchers Hôtels</h2>
-                    <button id="upload-voucher-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
-                        <i class="fas fa-upload mr-2"></i>Uploader un voucher
-                    </button>
-                </div>
-                
-                <!-- Vouchers organisés par voyage -->
-                {% if assigned_trips %}
-                    {% for trip in assigned_trips %}
-                    <div class="mb-4 border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <i class="fas fa-route text-blue-500"></i>
-                            {{ trip.tripName }}
-                            <span class="text-xs text-gray-500">({{ trip.startDate }} → {{ trip.endDate }})</span>
-                        </h3>
-                        
-                        {% set trip_vouchers = vouchers | selectattr('assignmentId', 'equalto', trip.id) | list %}
-                        {% if trip_vouchers %}
-                            <div class="space-y-2">
-                                {% for voucher in trip_vouchers %}
-                                <div class="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">
-                                    <div class="flex items-center gap-3">
-                                        <i class="fas fa-file-pdf text-red-500"></i>
-                                        <div>
-                                            <p class="text-sm font-medium">{{ voucher.fileName }}</p>
-                                            <p class="text-xs text-gray-500">{{ (voucher.fileSize / 1024) | round(1) }} KB</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <a href="{{ voucher.downloadURL }}" target="_blank" class="text-blue-600 hover:text-blue-800 px-2 py-1">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        <button class="delete-voucher-btn text-red-600 hover:text-red-800 px-2 py-1" data-voucher-id="{{ voucher.id }}">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="text-sm text-gray-500 italic">Aucun voucher pour ce voyage</p>
+                        <div class="flex items-center text-gray-600">
+                            <div class="w-8 flex justify-center"><i class="fas fa-phone text-gray-400"></i></div>
+                            <span>{{ customer.phone }}</span>
+                        </div>
+                        {% if customer.address %}
+                        <div class="flex items-start text-gray-600">
+                            <div class="w-8 flex justify-center mt-1"><i
+                                    class="fas fa-map-marker-alt text-gray-400"></i></div>
+                            <span>{{ customer.address }}</span>
+                        </div>
                         {% endif %}
                     </div>
-                    {% endfor %}
-                    
-                    <!-- Vouchers non assignés -->
-                    {% set unassigned_vouchers = vouchers | rejectattr('assignmentId') | list %}
-                    {% if unassigned_vouchers %}
-                    <div class="mb-4 border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <i class="fas fa-folder text-gray-500"></i>
-                            Non assignés
-                        </h3>
-                        <div class="space-y-2">
-                            {% for voucher in unassigned_vouchers %}
-                            <div class="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">
-                                <div class="flex items-center gap-3">
-                                    <i class="fas fa-file-pdf text-red-500"></i>
-                                    <div>
-                                        <p class="text-sm font-medium">{{ voucher.fileName }}</p>
-                                        <p class="text-xs text-gray-500">{{ (voucher.fileSize / 1024) | round(1) }} KB</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <a href="{{ voucher.downloadURL }}" target="_blank" class="text-blue-600 hover:text-blue-800 px-2 py-1">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    <button class="delete-voucher-btn text-red-600 hover:text-red-800 px-2 py-1" data-voucher-id="{{ voucher.id }}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            {% endfor %}
+                </div>
+            </div>
+
+            <!-- Notes (Placeholder) -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Notes Internes</h3>
+                <textarea
+                    class="w-full text-sm border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                    rows="4" placeholder="Ajouter une note..."></textarea>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT: TRIPS -->
+        <div class="lg:col-span-3 space-y-6">
+
+            {% if assigned_trips %}
+            {% for trip in assigned_trips %}
+            <!-- TRIP CARD -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden trip-card group"
+                data-booking-id="{{ trip.booking_id }}">
+                <!-- Header Banner -->
+                <!-- Header Banner -->
+                {% if trip.is_broken %}
+                <div class="bg-red-600 px-6 py-4 flex justify-between items-center text-white">
+                    <div>
+                        <div class="flex items-center gap-3 mb-1">
+                            <h3 class="text-lg font-bold"><i class="fas fa-exclamation-triangle mr-2"></i> DATA ERROR
+                            </h3>
+                            <span
+                                class="bg-red-800 text-red-100 text-xs px-2 py-0.5 rounded border border-red-700">Voyage
+                                Supprimé</span>
+                        </div>
+                        <p class="text-xs text-red-100 italic">Le template de ce voyage (ID: {{ trip.tripId }}) n'existe
+                            plus.</p>
+                    </div>
+                    <div>
+                        <button
+                            class="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded text-sm transition-colors unassign-trip-btn"
+                            data-assignment-id="{{ trip.id }}" title="Supprimer cette réservation fantôme">
+                            <i class="fas fa-trash-alt mr-2"></i>Nettoyer
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div
+                    class="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-4 flex justify-between items-center text-white">
+                    <div>
+                        <div class="flex items-center gap-3 mb-1">
+                            <h3 class="text-lg font-bold">{{ trip.tripName }}</h3>
+                            <span
+                                class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded border border-gray-600">Prochain
+                                Départ</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-400">
+                            <i class="far fa-calendar-alt mr-2"></i>
+                            {{ trip.startDate | replace("-", "/") }} <i class="fas fa-arrow-right mx-2 text-xs"></i> {{
+                            trip.endDate | replace("-", "/") }}
                         </div>
                     </div>
-                    {% endif %}
-                {% else %}
-                    <p class="text-gray-500 text-center py-4">Assignez d'abord un voyage au client</p>
-                {% endif %}
-            </div>
-            
-            <!-- Section Fichiers GPX -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Fichiers GPX</h2>
-                    <button id="upload-gpx-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
-                        <i class="fas fa-upload mr-2"></i>Uploader un GPX
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <!-- Reveal Toggle -->
+                        {% if trip.booking %}
+                        <button class="reveal-toggle-btn px-3 py-1.5 rounded text-sm transition-colors border backdrop-blur-sm
+                            {% if trip.booking.forceReveal %}
+                            bg-green-500/20 hover:bg-green-500/30 text-green-100 border-green-500/30
+                            {% else %}
+                            bg-white/10 hover:bg-white/20 text-gray-300 border-white/10
+                            {% endif %}" data-booking-id="{{ trip.booking_id }}"
+                            data-revealed="{{ 'true' if trip.booking.forceReveal else 'false' }}"
+                            title="{{ 'Roadbook visible' if trip.booking.forceReveal else 'Roadbook masqué (auto)' }}">
+                            <i class="fas {{ 'fa-unlock' if trip.booking.forceReveal else 'fa-lock' }}"></i>
+                        </button>
+                        {% endif %}
+
+                        <a href="{{ url_for('client.view_roadbook', token=trip.booking.accessToken) }}" target="_blank"
+                            class="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-sm transition-colors border border-white/10 backdrop-blur-sm">
+                            <i class="fas fa-external-link-alt mr-2"></i>Roadbook
+                        </a>
+                        <button
+                            class="text-gray-400 hover:text-red-400 p-2 rounded hover:bg-white/5 transition-colors unassign-trip-btn"
+                            data-assignment-id="{{ trip.id }}" title="Retirer ce voyage">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
                 </div>
-                
-                <!-- GPX organisés par voyage -->
-                {% if assigned_trips %}
-                    {% for trip in assigned_trips %}
-                    <div class="mb-4 border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <i class="fas fa-route text-green-500"></i>
-                            {{ trip.tripName }}
-                            <span class="text-xs text-gray-500">({{ trip.startDate }} → {{ trip.endDate }})</span>
-                        </h3>
-                        
-                        {% set trip_gpx_files = gpx_files | selectattr('assignmentId', 'equalto', trip.id) | list %}
-                        {% if trip_gpx_files %}
+                {% endif %}
+
+                <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                    <!-- COL 1: INFO & STATS -->
+                    <div class="space-y-6 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-6">
+                        <div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Détails</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-indigo-50 rounded-lg p-3 text-center">
+                                    <span class="block text-xl font-bold text-indigo-700">5</span>
+                                    <span class="text-xs text-indigo-600 font-medium">Jours</span>
+                                </div>
+                                <div class="bg-blue-50 rounded-lg p-3 text-center">
+                                    <span class="block text-xl font-bold text-blue-700">1</span>
+                                    <span class="text-xs text-blue-600 font-medium">Pilote</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Options</h4>
+                            <ul class="space-y-2 text-sm text-gray-600">
+                                <li class="flex items-center"><i class="fas fa-check text-green-500 mr-2"></i> Chambre
+                                    simple</li>
+                                <li class="flex items-center"><i class="fas fa-check text-green-500 mr-2"></i>
+                                    Demi-pension</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- COL 2: FINANCE HUB -->
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <div class="flex justify-between items-end mb-2">
+                                <div>
+                                    <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Total
+                                        Voyage</p>
+                                    <p class="text-xl font-bold text-gray-900">{{
+                                        "%.2f"|format(trip.booking.totalAmount) }}€</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-xs px-2 py-1 rounded-full font-medium
+                                        {% if trip.booking.paymentStatus == 'pending' %}bg-orange-100 text-orange-700
+                                        {% elif trip.booking.paymentStatus == 'partial' %}bg-blue-100 text-blue-700
+                                        {% elif trip.booking.paymentStatus == 'fully_paid' %}bg-green-100 text-green-700
+                                        {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                        {% if trip.booking.paymentStatus == 'pending' %}En attente
+                                        {% elif trip.booking.paymentStatus == 'partial' %}Acompte versé
+                                        {% elif trip.booking.paymentStatus == 'fully_paid' %}Soldé
+                                        {% else %}{{ trip.booking.paymentStatus }}{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Progress Bar -->
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden relative">
+                                <!-- Deposit Marker (Required) -->
+                                {% if trip.booking.requiredDeposit and trip.booking.totalAmount > 0 %}
+                                {% set deposit_pct = (trip.booking.requiredDeposit / trip.booking.totalAmount) * 100 %}
+                                <div class="absolute top-0 bottom-0 border-r-2 border-dashed border-gray-400 opacity-50 z-10"
+                                    style="left: {{ deposit_pct }}%;"
+                                    title="Acompte requis: {{ trip.booking.requiredDeposit }}€"></div>
+                                {% endif %}
+
+                                <div class="bg-green-500 h-2.5 rounded-full transition-all duration-500"
+                                    style="width: {{ trip.booking.get_payment_progress() }}%"></div>
+                            </div>
+
+                            <div class="flex justify-between text-xs text-gray-500 mb-3">
+                                <span>Payé: <span class="font-medium text-green-600">{{
+                                        "%.2f"|format(trip.booking.depositAmount) }}€</span></span>
+                                <span>Reste: <span class="font-medium text-red-500">{{
+                                        "%.2f"|format(trip.booking.remainingAmount) }}€</span></span>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-200">
+                                <button
+                                    class="request-payment-btn flex items-center justify-center gap-1 py-1.5 px-3 rounded bg-white border border-gray-300 shadow-sm text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
+                                    data-booking-id="{{ trip.booking_id }}" data-type="deposit">
+                                    <i class="fas fa-paper-plane text-indigo-400"></i> Demander Acompte
+                                </button>
+                                <button
+                                    class="request-payment-btn flex items-center justify-center gap-1 py-1.5 px-3 rounded bg-white border border-gray-300 shadow-sm text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"
+                                    data-booking-id="{{ trip.booking_id }}" data-type="balance">
+                                    <i class="fas fa-envelope-open-text text-green-400"></i> Demander Solde
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            class="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium edit-financials-btn"
+                            data-booking-id="{{ trip.booking_id }}" data-total="{{ trip.booking.totalAmount }}"
+                            data-deposit="{{ trip.booking.depositAmount }}"
+                            data-remaining="{{ trip.booking.remainingAmount }}"
+                            data-status="{{ trip.booking.paymentStatus }}">
+                            <i class="fas fa-edit mr-1"></i>Ajuster manuellement
+                        </button>
+                    </div>
+                    <!-- COL 3: DOCUMENTS -->
+                    <div class="space-y-6">
+                        <!-- 1. BASE GPX (From Template) -->
+                        <div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">GPX Base
+                                (Template)</h4>
+                            <div class="space-y-2">
+                                {% if trip.standard_gpx %}
+                                {% for gpx in trip.standard_gpx %}
+                                <a href="{{ url_for('admin.proxy_gpx', url=gpx.url) }}"
+                                    class="flex items-center p-2 rounded hover:bg-gray-50 group border border-transparent hover:border-gray-200 transition-all">
+                                    <div
+                                        class="h-8 w-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                                        <i class="fas fa-map-marked-alt"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900 truncate">{{ gpx.name }}</p>
+                                        <p class="text-xs text-gray-500">Inclus dans le voyage</p>
+                                    </div>
+                                    <i class="fas fa-download text-gray-300 group-hover:text-gray-500"></i>
+                                </a>
+                                {% endfor %}
+                                {% else %}
+                                <p class="text-xs text-gray-400 italic">Aucun GPX standard.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- 2. CUSTOM GPX (Uploads) -->
+                        <div class="pt-4 border-t border-gray-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">GPX Personnalisé
+                                </h4>
+                                <button class="text-xs text-indigo-600 hover:text-indigo-800 upload-gpx-btn font-medium"
+                                    data-trip-id="{{ trip.id }}">+ Ajouter</button>
+                            </div>
+
+                            {% set trip_gpx_files = gpx_files | selectattr('assignmentId', 'equalto', trip.id) | list %}
+                            {% if trip_gpx_files %}
                             <div class="space-y-2">
                                 {% for gpx in trip_gpx_files %}
-                                <div class="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">
-                                    <div class="flex items-center gap-3">
-                                        <i class="fas fa-map-marked-alt text-green-500"></i>
-                                        <div>
-                                            <p class="text-sm font-medium">{{ gpx.fileName }}</p>
-                                            <p class="text-xs text-gray-500">{{ (gpx.fileSize / 1024) | round(1) }} KB</p>
-                                        </div>
+                                <div
+                                    class="flex items-center justify-between p-2 bg-green-50 rounded border border-green-100 text-sm group">
+                                    <div class="flex items-center overflow-hidden">
+                                        <i class="fas fa-route text-green-600 mr-2 flex-shrink-0"></i>
+                                        <span class="truncate text-gray-700 text-xs"
+                                            title="{{ gpx.name or gpx.filename }}">{{ gpx.name or gpx.filename or 'GPX'
+                                            }}</span>
                                     </div>
-                                    <div class="flex items-center gap-2">
-                                        <a href="{{ gpx.downloadURL }}" download class="text-blue-600 hover:text-blue-800 px-2 py-1">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        <button class="delete-gpx-btn text-red-600 hover:text-red-800 px-2 py-1" data-gpx-id="{{ gpx.id }}">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                    <button class="text-gray-400 hover:text-red-500 delete-gpx-btn ml-2"
+                                        data-gpx-id="{{ gpx.id }}"><i class="fas fa-trash"></i></button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-xs text-gray-400 italic">Aucun fichier spécifique.</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- 3. VOUCHERS -->
+                        <div class="pt-4 border-t border-gray-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Vouchers</h4>
+                                <button
+                                    class="text-xs text-indigo-600 hover:text-indigo-800 upload-voucher-btn font-medium"
+                                    data-trip-id="{{ trip.id }}">+ Ajouter</button>
+                            </div>
+
+                            <!-- We need to filter filters by assignmentId if logic permits, or just show all for now if no direct link -->
+                            <!-- Assuming vouchers have assignmentId now or we rely on customer level. Let's filter if possible. -->
+                            {% set trip_vouchers = vouchers | selectattr('assignmentId', 'equalto', trip.id) | list %}
+
+                            {% if trip_vouchers %}
+                            <div class="space-y-2">
+                                {% for voucher in trip_vouchers %}
+                                <div
+                                    class="flex items-center justify-between p-2 bg-yellow-50 rounded border border-yellow-100 text-sm group">
+                                    <div class="flex items-center overflow-hidden">
+                                        <i class="fas fa-ticket-alt text-yellow-600 mr-2 flex-shrink-0"></i>
+                                        <span class="truncate text-gray-700 text-xs" title="Voucher">{{ voucher.name or
+                                            voucher.filename or 'Voucher' }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <a href="{{ voucher.url }}" target="_blank"
+                                            class="text-gray-400 hover:text-blue-500"><i class="fas fa-eye"></i></a>
+                                        <button class="text-gray-400 hover:text-red-500 delete-voucher-btn ml-1"
+                                            data-voucher-id="{{ voucher.id }}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
                                 {% endfor %}
                             </div>
-                        {% else %}
-                            <p class="text-sm text-gray-500 italic">Aucun fichier GPX pour ce voyage</p>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                    
-                    <!-- GPX non assignés -->
-                    {% set unassigned_gpx_files = gpx_files | rejectattr('assignmentId') | list %}
-                    {% if unassigned_gpx_files %}
-                    <div class="mb-4 border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <i class="fas fa-folder text-gray-500"></i>
-                            Non assignés
-                        </h3>
-                        <div class="space-y-2">
-                            {% for gpx in unassigned_gpx_files %}
-                            <div class="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">
-                                <div class="flex items-center gap-3">
-                                    <i class="fas fa-map-marked-alt text-green-500"></i>
-                                    <div>
-                                        <p class="text-sm font-medium">{{ gpx.fileName }}</p>
-                                        <p class="text-xs text-gray-500">{{ (gpx.fileSize / 1024) | round(1) }} KB</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <a href="{{ gpx.downloadURL }}" download class="text-blue-600 hover:text-blue-800 px-2 py-1">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    <button class="delete-gpx-btn text-red-600 hover:text-red-800 px-2 py-1" data-gpx-id="{{ gpx.id }}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            {% endfor %}
+                            {% else %}
+                            <p class="text-xs text-gray-400 italic">Aucun voucher.</p>
+                            {% endif %}
                         </div>
+
                     </div>
-                    {% endif %}
-                {% else %}
-                    <p class="text-gray-500 text-center py-4">Assignez d'abord un voyage au client</p>
-                {% endif %}
-            </div>
-            
-        </div>
-    </div>
-</div>
 
-<!-- Modale Éditer Client -->
-<div id="edit-customer-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95">
-        <h3 class="text-2xl font-semibold mb-4 text-blue-600">Modifier le client</h3>
-        <form id="edit-customer-form">
-            <div class="mb-4">
-                <label for="edit-customer-name" class="block text-sm font-medium text-gray-700 mb-2">
-                    Nom <span class="text-red-500">*</span>
-                </label>
-                <input type="text" id="edit-customer-name" value="{{ customer.name }}" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            
-            <div class="mb-4">
-                <label for="edit-customer-email" class="block text-sm font-medium text-gray-700 mb-2">
-                    Email <span class="text-red-500">*</span>
-                </label>
-                <input type="email" id="edit-customer-email" value="{{ customer.email }}" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            
-            <div class="mb-4">
-                <label for="edit-customer-phone" class="block text-sm font-medium text-gray-700 mb-2">
-                    Téléphone <span class="text-red-500">*</span>
-                </label>
-                <input type="tel" id="edit-customer-phone" value="{{ customer.phone }}" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            
-            <div class="mb-6">
-                <label for="edit-customer-address" class="block text-sm font-medium text-gray-700 mb-2">
-                    Adresse
-                </label>
-                <textarea id="edit-customer-address" rows="2"
-                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{{ customer.address or '' }}</textarea>
-            </div>
-            
-            <div class="flex justify-end gap-4">
-                <button type="button" id="cancel-edit-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
-                    Annuler
-                </button>
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium">
-                    <i class="fas fa-save mr-2"></i>Enregistrer
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modale Assigner Voyage -->
-<div id="assign-trip-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95">
-        <h3 class="text-2xl font-semibold mb-4 text-green-600">Assigner un voyage</h3>
-        <form id="assign-trip-form">
-            <div class="mb-4">
-                <label for="select-trip" class="block text-sm font-medium text-gray-700 mb-2">
-                    Voyage <span class="text-red-500">*</span>
-                </label>
-                <select id="select-trip" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="">-- Sélectionnez un voyage --</option>
-                    {% for trip in available_trips %}
-                    <option value="{{ trip.id }}" data-name="{{ trip.name }}" data-duration="{{ trip.duration }}">{{ trip.name }} ({{ trip.duration }} jours)</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="mb-4">
-                <label for="trip-start-date" class="block text-sm font-medium text-gray-700 mb-2">
-                    Date de début <span class="text-red-500">*</span>
-                </label>
-                <input type="date" id="trip-start-date" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Date de fin (calculée automatiquement)
-                </label>
-                <input type="date" id="trip-end-date" readonly
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed">
-                <p class="text-xs text-gray-500 mt-1">La date de fin est calculée automatiquement selon la durée du voyage</p>
-            </div>
-            
-            <div class="mb-6">
-                <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
-                    <p class="text-sm text-blue-800">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        <span id="trip-duration-info">Sélectionnez un voyage et une date de début</span>
-                    </p>
                 </div>
             </div>
-            
-            <div class="flex justify-end gap-4">
-                <button type="button" id="cancel-assign-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
-                    Annuler
-                </button>
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
-                    <i class="fas fa-check mr-2"></i>Assigner
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+            {% endfor %}
 
-<!-- Modale Upload Voucher -->
-<div id="upload-voucher-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95">
-        <h3 class="text-2xl font-semibold mb-4 text-purple-600">Uploader un voucher</h3>
-        <form id="upload-voucher-form">
-            <div class="mb-4">
-                <label for="voucher-file" class="block text-sm font-medium text-gray-700 mb-2">
-                    Fichier (PDF, Image) <span class="text-red-500">*</span>
-                </label>
-                <input type="file" id="voucher-file" accept=".pdf,.jpg,.jpeg,.png" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <p class="text-xs text-gray-500 mt-1">Formats acceptés : PDF, JPG, PNG</p>
+            {% else %}
+            <!-- EMPTY STATE -->
+            <div class="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                <div
+                    class="mx-auto h-16 w-16 text-gray-300 mb-4 bg-gray-50 rounded-full flex items-center justify-center">
+                    <i class="fas fa-suitcase fa-2x"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900">Aucun voyage assigné</h3>
+                <p class="mt-2 text-sm text-gray-500 max-w-sm mx-auto">Ce client n'a pas encore de voyage planifié.
+                    Commencez par lui assigner son prochain roadtrip !</p>
+                <div class="mt-6">
+                    <button id="assign-trip-btn-empty"
+                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i> Assigner un voyage
+                    </button>
+                </div>
             </div>
-            
-            <div class="mb-6">
-                <label for="voucher-assignment" class="block text-sm font-medium text-gray-700 mb-2">
-                    Associer à un voyage (optionnel)
-                </label>
-                <select id="voucher-assignment"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                    <option value="">-- Aucun --</option>
-                    {% for trip in assigned_trips %}
-                    <option value="{{ trip.id }}">{{ trip.tripName }} ({{ trip.startDate }} - {{ trip.endDate }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="flex justify-end gap-4">
-                <button type="button" id="cancel-upload-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
-                    Annuler
-                </button>
-                <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium">
-                    <i class="fas fa-upload mr-2"></i>Uploader
-                </button>
-            </div>
-        </form>
-        
-        <!-- Progress bar -->
-        <div id="upload-progress" class="mt-4 hidden">
-            <div class="w-full bg-gray-200 rounded-full h-2">
-                <div id="upload-progress-bar" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <p class="text-sm text-gray-600 mt-1 text-center">Upload en cours...</p>
+            {% endif %}
+
         </div>
     </div>
 </div>
+<!-- MODALS -->
+{% include 'admin/components/modals/assign_trip_modal.html' ignore missing %}
+{% include 'admin/components/modals/upload_voucher_modal.html' ignore missing %}
+{% include 'admin/components/modals/upload_gpx_modal.html' ignore missing %}
+{% include 'admin/components/modals/delete_confirm_modal.html' ignore missing %}
+{% include 'admin/components/modals/edit_financials_modal.html' ignore missing %}
+{% include 'admin/components/modals/edit_customer_modal.html' ignore missing %}
 
-<!-- Modale Upload GPX -->
-<div id="upload-gpx-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg transform scale-95">
-        <h3 class="text-2xl font-semibold mb-4 text-green-600">Uploader un fichier GPX</h3>
-        <form id="upload-gpx-form">
-            <div class="mb-4">
-                <label for="gpx-file" class="block text-sm font-medium text-gray-700 mb-2">
-                    Fichier GPX <span class="text-red-500">*</span>
-                </label>
-                <input type="file" id="gpx-file" accept=".gpx" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                <p class="text-xs text-gray-500 mt-1">Format accepté : GPX uniquement</p>
-            </div>
-            
-            <div class="mb-6">
-                <label for="gpx-assignment" class="block text-sm font-medium text-gray-700 mb-2">
-                    Associer à un voyage (optionnel)
-                </label>
-                <select id="gpx-assignment"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="">-- Aucun --</option>
-                    {% for trip in assigned_trips %}
-                    <option value="{{ trip.id }}">{{ trip.tripName }} ({{ trip.startDate }} - {{ trip.endDate }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="flex justify-end gap-4">
-                <button type="button" id="cancel-gpx-upload-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">
-                    Annuler
-                </button>
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium">
-                    <i class="fas fa-upload mr-2"></i>Uploader
-                </button>
-            </div>
-        </form>
-        
-        <!-- Progress bar -->
-        <div id="gpx-upload-progress" class="mt-4 hidden">
-            <div class="w-full bg-gray-200 rounded-full h-2">
-                <div id="gpx-upload-progress-bar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <p class="text-sm text-gray-600 mt-1 text-center">Upload en cours...</p>
-        </div>
-    </div>
-</div>
-
-<!-- Modale de Confirmation de Suppression -->
-<div id="delete-confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md transform scale-95">
-        <h3 class="text-2xl font-semibold mb-4 text-red-600">Confirmer la suppression</h3>
-        <p id="delete-confirm-message" class="text-gray-700 mb-6"></p>
-        <div class="flex justify-end gap-4">
-            <button type="button" id="cancel-delete-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 font-medium">Annuler</button>
-            <button type="button" id="confirm-delete-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium">Supprimer</button>
-        </div>
-    </div>
-</div>
-
-<!-- Données pour JavaScript -->
-<script>
-    window.customerId = "{{ customer.id }}";
-    window.customerName = "{{ customer.name }}";
-</script>
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+    // Data injection for JS
+    window.customerId = "{{ customer.id }}";
+    window.customerName = "{{ customer.name }}";
+</script>
 <script src="{{ url_for('static', filename='js/customer_detail.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,118 @@
+{% extends "public/base.html" %}
+
+{% block title %}Réservation Confirmée - OldiBike{% endblock %}
+
+{% block page_content %}
+
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 py-12 px-4">
+    <div class="max-w-2xl w-full">
+        <!-- Success Card -->
+        <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12 text-center">
+            <!-- Success Icon -->
+            <div class="mb-6">
+                <div class="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full">
+                    <i class="fas fa-check-circle text-green-500 text-6xl"></i>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                Paiement Confirmé !
+            </h1>
+
+            <p class="text-xl text-gray-600 mb-8">
+                Merci {{ booking.leader_details.first_name if booking and booking.leader_details else '' }}, votre
+                réservation est en cours de traitement.
+            </p>
+
+            <!-- Join Code Display for Groups -->
+            {% if booking and booking.joinCode %}
+            <div
+                class="bg-indigo-50 border-2 border-indigo-200 p-6 rounded-xl mb-8 transform hover:scale-105 transition duration-300">
+                <h3 class="text-xl font-bold text-indigo-900 mb-4">
+                    <i class="fas fa-users mr-2"></i>Invitez vos amis
+                </h3>
+                <p class="text-sm text-indigo-700 mb-3">Partagez ce code pour qu'ils rejoignent votre groupe :</p>
+
+                <div class="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm flex items-center justify-center gap-4 group cursor-pointer"
+                    onclick="copyCode()">
+                    <span id="joinCode" class="text-4xl font-mono font-bold text-indigo-600 tracking-widest">{{
+                        booking.joinCode }}</span>
+                    <i class="far fa-copy text-indigo-400 group-hover:text-indigo-600"></i>
+                </div>
+                <div id="copyFeedback" class="h-4 mt-2 text-xs font-bold text-green-600 opacity-0 transition">Copié !
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Trip Details -->
+            <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                    <i class="fas fa-motorcycle mr-2 text-purple-600"></i>
+                    {{ trip.title }}
+                </h2>
+
+                <div class="space-y-3 text-gray-700">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Référence:</span>
+                        <span class="font-mono text-sm">{{ booking.id if booking else 'N/A' }}</span>
+                    </div>
+
+                    {% if booking and booking.total_amount %}
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Montant payé:</span>
+                        <span class="text-xl font-bold text-green-600">
+                            {{ "%.2f"|format(booking.total_amount) }}€
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Type:</span>
+                        <span class="capitalize">{{ booking.type|replace('_', ' ') if booking else 'Réservation'
+                            }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Next Steps -->
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-6 mb-8 text-left">
+                <h3 class="font-bold text-blue-900 mb-3 flex items-center">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Prochaines étapes
+                </h3>
+                <ul class="space-y-2 text-blue-800">
+                    <li class="flex items-start">
+                        <i class="fas fa-check mr-2 mt-1"></i>
+                        <span>Un email de confirmation a été envoyé.</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check mr-2 mt-1"></i>
+                        <span>Vous recevrez bientôt vos accès à l'Espace Client.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://oldibike.be"
+                    class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <i class="fas fa-home mr-2"></i>Retour à l'accueil
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyCode() {
+        const code = document.getElementById('joinCode').innerText;
+        navigator.clipboard.writeText(code).then(() => {
+            const feedback = document.getElementById('copyFeedback');
+            feedback.classList.remove('opacity-0');
+            setTimeout(() => feedback.classList.add('opacity-0'), 2000);
+        });
+    }
+</script>
+
+{% endblock %}

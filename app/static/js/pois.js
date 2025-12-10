@@ -16,13 +16,16 @@ const CATEGORY_CONFIG = {
     'museum': { icon: '🎨', label: 'Musée', color: '#f59e0b' },
     'activity': { icon: '⚡', label: 'Activité', color: '#ef4444' },
     'viewpoint': { icon: '🔭', label: 'Point de vue', color: '#3b82f6' },
+    'pass': { icon: '⛰️', label: 'Col', color: '#6366f1' },
+    'lake': { icon: '💧', label: 'Lac', color: '#06b6d4' },
+    'route': { icon: '🛣️', label: 'Route', color: '#14b8a6' },
     'other': { icon: '📍', label: 'Autre', color: '#6b7280' }
 };
 
 // Au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📍 Module POIs chargé');
-    
+
     initEventListeners();
     loadPartners();
     loadPois();
@@ -36,22 +39,22 @@ function initEventListeners() {
     document.getElementById('add-poi-btn').addEventListener('click', () => {
         openPoiModal();
     });
-    
+
     // Boutons de la modale
     document.getElementById('close-modal-btn').addEventListener('click', closePoiModal);
     document.getElementById('cancel-btn').addEventListener('click', closePoiModal);
-    
+
     // Soumission du formulaire
     document.getElementById('poi-form').addEventListener('submit', handleSubmitPoi);
-    
+
     // Recherche et filtres
     document.getElementById('search-input').addEventListener('input', applyFilters);
     document.getElementById('city-filter').addEventListener('change', applyFilters);
     document.getElementById('category-filter').addEventListener('change', applyFilters);
-    
+
     // Upload photos
     document.getElementById('poi-photos-input').addEventListener('change', handlePhotosSelected);
-    
+
     // Fermeture modale au clic à l'extérieur
     document.getElementById('poi-modal').addEventListener('click', (e) => {
         if (e.target.id === 'poi-modal') {
@@ -67,7 +70,7 @@ async function loadPartners() {
     try {
         const response = await fetch('/admin/api/partners?active_only=false');
         const data = await response.json();
-        
+
         if (data.success) {
             allPartners = data.partners;
             console.log(`✅ ${allPartners.length} partenaire(s) chargé(s)`);
@@ -84,11 +87,11 @@ async function loadPois() {
     try {
         const response = await fetch('/admin/api/pois');
         const data = await response.json();
-        
+
         if (data.success) {
             allPois = data.pois;
             filteredPois = [...allPois];
-            
+
             updateStatistics();
             populateCityFilter();
             renderPois();
@@ -109,7 +112,7 @@ function updateStatistics() {
     const cities = new Set(allPois.map(p => p.city)).size;
     const withPhotos = allPois.filter(p => p.photos && p.photos.length > 0).length;
     const categories = new Set(allPois.map(p => p.category)).size;
-    
+
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-cities').textContent = cities;
     document.getElementById('stat-with-photos').textContent = withPhotos;
@@ -122,7 +125,7 @@ function updateStatistics() {
 function populateCityFilter() {
     const cities = [...new Set(allPois.map(p => p.city))].sort();
     const select = document.getElementById('city-filter');
-    
+
     select.innerHTML = '<option value="">Toutes les villes</option>';
     cities.forEach(city => {
         const count = allPois.filter(p => p.city === city).length;
@@ -140,19 +143,19 @@ function applyFilters() {
     const searchTerm = document.getElementById('search-input').value.toLowerCase();
     const cityFilter = document.getElementById('city-filter').value;
     const categoryFilter = document.getElementById('category-filter').value;
-    
+
     filteredPois = allPois.filter(poi => {
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
             poi.name.toLowerCase().includes(searchTerm) ||
             poi.city.toLowerCase().includes(searchTerm) ||
             (poi.description && poi.description.toLowerCase().includes(searchTerm));
-        
+
         const matchesCity = !cityFilter || poi.city === cityFilter;
         const matchesCategory = !categoryFilter || poi.category === categoryFilter;
-        
+
         return matchesSearch && matchesCity && matchesCategory;
     });
-    
+
     renderPois();
 }
 
@@ -162,18 +165,18 @@ function applyFilters() {
 function renderPois() {
     const tbody = document.getElementById('pois-table-body');
     const noResultsMsg = document.getElementById('no-pois-message');
-    
+
     if (filteredPois.length === 0) {
         tbody.innerHTML = '';
         noResultsMsg.classList.remove('hidden');
         return;
     }
-    
+
     noResultsMsg.classList.add('hidden');
-    
+
     tbody.innerHTML = filteredPois.map(poi => {
         const config = CATEGORY_CONFIG[poi.category] || CATEGORY_CONFIG['other'];
-        
+
         return `
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4">
@@ -183,9 +186,9 @@ function renderPois() {
                             <div class="text-sm font-medium text-gray-900">
                                 ${escapeHtml(poi.name)}
                             </div>
-                            ${poi.description ? 
-                                `<div class="text-xs text-gray-500 max-w-md truncate">${escapeHtml(poi.description)}</div>` 
-                                : ''}
+                            ${poi.description ?
+                `<div class="text-xs text-gray-500 max-w-md truncate">${escapeHtml(poi.description)}</div>`
+                : ''}
                         </div>
                     </div>
                 </td>
@@ -194,9 +197,9 @@ function renderPois() {
                         <i class="fas fa-map-marker-alt text-purple-600 mr-1"></i>
                         ${escapeHtml(poi.city)}
                     </div>
-                    ${poi.address ? 
-                        `<div class="text-xs text-gray-500">${escapeHtml(poi.address)}</div>` 
-                        : ''}
+                    ${poi.address ?
+                `<div class="text-xs text-gray-500">${escapeHtml(poi.address)}</div>`
+                : ''}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium"
@@ -206,20 +209,20 @@ function renderPois() {
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
-                    ${poi.website ? 
-                        `<div><a href="${escapeHtml(poi.website)}" target="_blank" class="text-blue-600 hover:underline">
+                    ${poi.website ?
+                `<div><a href="${escapeHtml(poi.website)}" target="_blank" class="text-blue-600 hover:underline">
                             <i class="fas fa-external-link-alt mr-1"></i>Site web
                         </a></div>` : ''
-                    }
-                    ${poi.phone ? 
-                        `<div><i class="fas fa-phone mr-1"></i>${escapeHtml(poi.phone)}</div>` 
-                        : ''
-                    }
-                    ${poi.photos && poi.photos.length > 0 ? 
-                        `<div class="text-xs text-gray-400">
+            }
+                    ${poi.phone ?
+                `<div><i class="fas fa-phone mr-1"></i>${escapeHtml(poi.phone)}</div>`
+                : ''
+            }
+                    ${poi.photos && poi.photos.length > 0 ?
+                `<div class="text-xs text-gray-400">
                             <i class="fas fa-images mr-1"></i>${poi.photos.length} photo(s)
                         </div>` : ''
-                    }
+            }
                     ${!poi.website && !poi.phone && (!poi.photos || poi.photos.length === 0) ? '-' : ''}
                 </td>
                 <td class="px-6 py-4">
@@ -247,11 +250,11 @@ function renderPartnerBadges(partnerIds) {
     if (!partnerIds || partnerIds.length === 0) {
         return '<span class="text-xs text-gray-400">Aucun</span>';
     }
-    
+
     return partnerIds.map(partnerId => {
         const partner = allPartners.find(p => p.id === partnerId);
         if (!partner) return '';
-        
+
         return `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mr-1 mb-1"
                       style="background-color: ${partner.color}20; color: ${partner.color};">
             <span>${partner.badgeIcon || '🏷️'}</span>
@@ -265,19 +268,19 @@ function renderPartnerBadges(partnerIds) {
  */
 async function openPoiModal(poi = null) {
     currentEditingId = poi?.id || null;
-    
+
     const modal = document.getElementById('poi-modal');
     const title = document.getElementById('modal-title');
     const form = document.getElementById('poi-form');
-    
+
     // Réinitialise le formulaire
     form.reset();
     selectedFiles = [];
     document.getElementById('photos-preview').innerHTML = '';
-    
+
     // Charge les partenaires
     await loadPartnersForPoiModal(poi?.partnerIds || []);
-    
+
     if (poi) {
         // Mode édition
         title.textContent = 'Modifier le POI';
@@ -286,6 +289,8 @@ async function openPoiModal(poi = null) {
         document.getElementById('poi-city').value = poi.city || '';
         document.getElementById('poi-category').value = poi.category || '';
         document.getElementById('poi-address').value = poi.address || '';
+        document.getElementById('poi-address').value = poi.address || '';
+        document.getElementById('poi-tags').value = (poi.tags || []).join(', ');
         document.getElementById('poi-description').value = poi.description || '';
         document.getElementById('poi-website').value = poi.website || '';
         document.getElementById('poi-phone').value = poi.phone || '';
@@ -295,8 +300,9 @@ async function openPoiModal(poi = null) {
         // Mode création
         title.textContent = 'Nouveau POI';
         document.getElementById('poi-id').value = '';
+        document.getElementById('poi-tags').value = '';
     }
-    
+
     modal.classList.remove('hidden');
 }
 
@@ -305,12 +311,12 @@ async function openPoiModal(poi = null) {
  */
 async function loadPartnersForPoiModal(selectedPartnerIds = []) {
     const container = document.getElementById('poi-partners-checkboxes');
-    
+
     if (allPartners.length === 0) {
         container.innerHTML = '<p class="text-sm text-gray-500">Aucun partenaire disponible</p>';
         return;
     }
-    
+
     container.innerHTML = allPartners.map(partner => `
         <label class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
             <input type="checkbox" 
@@ -342,7 +348,7 @@ function closePoiModal() {
  */
 function handlePhotosSelected(event) {
     const files = Array.from(event.target.files);
-    
+
     // Validation
     const validFiles = [];
     for (const file of files) {
@@ -351,20 +357,20 @@ function handlePhotosSelected(event) {
             showToast(`${file.name}: Format non supporté (JPG, PNG uniquement)`, 'error');
             continue;
         }
-        
+
         // Vérifie la taille (5MB max)
         if (file.size > 5 * 1024 * 1024) {
             showToast(`${file.name}: Fichier trop volumineux (max 5MB)`, 'error');
             continue;
         }
-        
+
         validFiles.push(file);
     }
-    
+
     if (validFiles.length === 0) {
         return;
     }
-    
+
     selectedFiles = [...selectedFiles, ...validFiles];
     displayPhotosPreview();
 }
@@ -375,7 +381,7 @@ function handlePhotosSelected(event) {
 function displayPhotosPreview() {
     const previewContainer = document.getElementById('photos-preview');
     previewContainer.innerHTML = '';
-    
+
     selectedFiles.forEach((file, index) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -408,11 +414,11 @@ function removeSelectedPhoto(index) {
  */
 async function handleSubmitPoi(e) {
     e.preventDefault();
-    
+
     const selectedPartners = Array.from(
         document.querySelectorAll('input[name="partners"]:checked')
     ).map(cb => cb.value);
-    
+
     const formData = new FormData();
     formData.append('name', document.getElementById('poi-name').value.trim());
     formData.append('city', document.getElementById('poi-city').value.trim());
@@ -423,16 +429,18 @@ async function handleSubmitPoi(e) {
     formData.append('phone', document.getElementById('poi-phone').value.trim());
     formData.append('openingHours', document.getElementById('poi-opening-hours').value.trim());
     formData.append('entryFee', document.getElementById('poi-entry-fee').value || 0);
+    formData.append('entryFee', document.getElementById('poi-entry-fee').value || 0);
     formData.append('partnerIds', JSON.stringify(selectedPartners));
-    
+    formData.append('tags', document.getElementById('poi-tags').value.trim());
+
     // Ajoute les photos
     selectedFiles.forEach(file => {
         formData.append('photos', file);
     });
-    
+
     try {
         let response;
-        
+
         if (currentEditingId) {
             // Modification (PUT avec JSON, pas FormData car pas de photos en édition pour l'instant)
             const poiData = {
@@ -444,10 +452,12 @@ async function handleSubmitPoi(e) {
                 website: document.getElementById('poi-website').value.trim(),
                 phone: document.getElementById('poi-phone').value.trim(),
                 openingHours: document.getElementById('poi-opening-hours').value.trim(),
+                openingHours: document.getElementById('poi-opening-hours').value.trim(),
                 entryFee: document.getElementById('poi-entry-fee').value || null,
-                partnerIds: selectedPartners
+                partnerIds: selectedPartners,
+                tags: document.getElementById('poi-tags').value.split(',').map(t => t.trim()).filter(t => t)
             };
-            
+
             response = await fetch(`/admin/api/pois/${currentEditingId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -460,9 +470,9 @@ async function handleSubmitPoi(e) {
                 body: formData
             });
         }
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast(currentEditingId ? 'POI modifié avec succès' : 'POI créé avec succès', 'success');
             closePoiModal();
@@ -493,14 +503,14 @@ async function deletePoi(poiId, poiName) {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer "${poiName}" ?\n\nCette action est irréversible.`)) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/admin/api/pois/${poiId}`, {
             method: 'DELETE'
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast('POI supprimé avec succès', 'success');
             await loadPois();
@@ -519,9 +529,9 @@ async function deletePoi(poiId, poiName) {
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
-    
+
     toastMessage.textContent = message;
-    
+
     // Couleur selon le type
     if (type === 'error') {
         toast.classList.remove('bg-green-500');
@@ -530,10 +540,10 @@ function showToast(message, type = 'success') {
         toast.classList.remove('bg-red-500');
         toast.classList.add('bg-green-500');
     }
-    
+
     toast.classList.remove('hidden');
     setTimeout(() => toast.classList.remove('opacity-0'), 10);
-    
+
     setTimeout(() => {
         toast.classList.add('opacity-0');
         setTimeout(() => toast.classList.add('hidden'), 300);
