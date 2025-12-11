@@ -5,25 +5,33 @@
 {% block extra_styles %}
 <style>
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
-    
+
     .animate-fade-in {
         animation: fadeIn 0.3s ease-out;
     }
-    
+
     .hotel-card {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    
+
     .hotel-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
-    
-    .stat-card {
-        background: linear-gradient(135deg, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
+
+    .hotel-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
 </style>
 {% endblock %}
@@ -46,11 +54,13 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <button onclick="openImportModal()" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
+                    <button onclick="openImportModal()"
+                        class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
                         <i class="fas fa-file-excel mr-2"></i>
                         Import Excel
                     </button>
-                    <button onclick="openHotelModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
+                    <button onclick="openHotelModal()"
+                        class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition duration-150">
                         <i class="fas fa-plus mr-2"></i>
                         Nouvel Hôtel
                     </button>
@@ -63,7 +73,7 @@
         <!-- Statistiques -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Total Hôtels -->
-            <div class="stat-card from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-blue-100 text-sm font-medium mb-1">Total Hôtels</p>
@@ -76,7 +86,7 @@
             </div>
 
             <!-- Villes -->
-            <div class="stat-card from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+            <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-green-100 text-sm font-medium mb-1">Villes</p>
@@ -89,7 +99,7 @@
             </div>
 
             <!-- Note Moyenne -->
-            <div class="stat-card from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg">
+            <div class="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-yellow-100 text-sm font-medium mb-1">Note Moyenne</p>
@@ -104,7 +114,7 @@
             </div>
 
             <!-- Total Avis -->
-            <div class="stat-card from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-purple-100 text-sm font-medium mb-1">Total Avis</p>
@@ -126,22 +136,24 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
-                        <input type="text" id="searchInput" 
-                               class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                               placeholder="Rechercher un hôtel...">
+                        <input type="text" id="searchInput"
+                            class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            placeholder="Rechercher un hôtel...">
                     </div>
                 </div>
 
                 <!-- Filtre Ville -->
                 <div class="md:col-span-1">
-                    <select id="cityFilter" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                    <select id="cityFilter"
+                        class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <option value="">Toutes les villes</option>
                     </select>
                 </div>
 
                 <!-- Tri -->
                 <div class="md:col-span-1">
-                    <select id="sortBy" class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                    <select id="sortBy"
+                        class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <option value="name">Trier par nom</option>
                         <option value="rating">Trier par note</option>
                         <option value="usage">Trier par utilisation</option>
@@ -168,7 +180,8 @@
             </div>
             <h3 class="text-2xl font-semibold text-gray-900 mb-2">Aucun hôtel dans la banque</h3>
             <p class="text-gray-500 mb-6">Commencez par ajouter votre premier hôtel</p>
-            <button onclick="openHotelModal()" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+            <button onclick="openHotelModal()"
+                class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
                 <i class="fas fa-plus mr-2"></i>
                 Ajouter un hôtel
             </button>
@@ -202,8 +215,9 @@
                         <label for="ratehawkUrl" class="block text-sm font-medium text-gray-700 mb-2">
                             <i class="fas fa-link mr-1"></i> URL RateHawk de l'hôtel
                         </label>
-                        <input type="url" id="ratehawkUrl" placeholder="Collez l'URL RateHawk ici pour remplir automatiquement..."
-                               class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <input type="url" id="ratehawkUrl"
+                            placeholder="Collez l'URL RateHawk ici pour remplir automatiquement..."
+                            class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <p class="mt-2 text-xs text-gray-500">
                             <i class="fas fa-info-circle"></i> Exemple: https://worldota.net/hotel/hotel_name_city/...
                         </p>
@@ -220,14 +234,14 @@
                         <i class="fas fa-info-circle text-blue-600 mr-2"></i>
                         Informations de base
                     </h4>
-                    
+
                     <div class="space-y-4">
                         <div>
                             <label for="hotelName" class="block text-sm font-medium text-gray-700 mb-2">
                                 Nom de l'hôtel <span class="text-red-500">*</span>
                             </label>
                             <input type="text" id="hotelName" required
-                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,14 +250,14 @@
                                     Ville <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" id="hotelCity" required
-                                       class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                    class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                             </div>
                             <div>
                                 <label for="hotelAddress" class="block text-sm font-medium text-gray-700 mb-2">
                                     Adresse complète
                                 </label>
                                 <input type="text" id="hotelAddress"
-                                       class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                    class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                             </div>
                         </div>
 
@@ -252,8 +266,8 @@
                                 <i class="fas fa-align-left mr-1"></i> Description (optionnel)
                             </label>
                             <textarea id="hotelDescription" rows="4" maxlength="500"
-                                      class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                      placeholder="Décrivez l'établissement (ambiance, services, particularités...)"></textarea>
+                                class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Décrivez l'établissement (ambiance, services, particularités...)"></textarea>
                             <p class="mt-1 text-xs text-gray-500">
                                 <i class="fas fa-info-circle"></i> Maximum 500 caractères
                             </p>
@@ -267,21 +281,21 @@
                         <i class="fas fa-phone text-blue-600 mr-2"></i>
                         Contact
                     </h4>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label for="hotelPhone" class="block text-sm font-medium text-gray-700 mb-2">
                                 Téléphone
                             </label>
                             <input type="tel" id="hotelPhone"
-                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         </div>
                         <div>
                             <label for="hotelEmail" class="block text-sm font-medium text-gray-700 mb-2">
                                 Email
                             </label>
                             <input type="email" id="hotelEmail"
-                                   class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         </div>
                     </div>
 
@@ -290,7 +304,7 @@
                             Site web
                         </label>
                         <input type="url" id="hotelWebsite" placeholder="https://..."
-                               class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                            class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                     </div>
                 </div>
 
@@ -300,13 +314,13 @@
                         <i class="fas fa-home text-blue-600 mr-2"></i>
                         Type de Logement
                     </h4>
-                    
+
                     <div>
                         <label for="hotelType" class="block text-sm font-medium text-gray-700 mb-2">
                             Type <span class="text-red-500">*</span>
                         </label>
                         <select id="hotelType" required
-                                class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                            class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                             <option value="hotel">🏨 Hôtel</option>
                             <option value="gite">🏡 Gîte</option>
                             <option value="chambre_hote">🛏️ Chambre d'hôtes</option>
@@ -324,7 +338,7 @@
                         <i class="fas fa-handshake text-blue-600 mr-2"></i>
                         Partenaires
                     </h4>
-                    
+
                     <div class="bg-gray-50 rounded-lg p-4">
                         <p class="text-sm text-gray-600 mb-3">
                             <i class="fas fa-info-circle text-blue-600 mr-1"></i>
@@ -344,7 +358,7 @@
                 <div class="bg-blue-50 rounded-lg p-4">
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="downloadGooglePhotos" checked
-                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="ml-3 text-sm text-gray-700">
                             <i class="fas fa-images text-blue-600 mr-1"></i>
                             Télécharger automatiquement 5 photos depuis Google Places
@@ -358,11 +372,11 @@
             <!-- Footer -->
             <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
                 <button type="button" onclick="closeHotelModal()"
-                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
                     Annuler
                 </button>
                 <button type="button" id="btnSaveHotel" onclick="saveHotel()"
-                        class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
                     <i class="fas fa-check mr-2"></i>
                     Enregistrer
                 </button>
@@ -391,22 +405,25 @@
             <!-- Footer -->
             <div class="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
                 <div class="flex items-center space-x-3">
-                    <button type="button" id="viewGalleryBtn" class="hidden px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition">
+                    <button type="button" id="viewGalleryBtn"
+                        class="hidden px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition">
                         <i class="fas fa-images mr-2"></i>
                         Voir la Galerie
                     </button>
-                    <button type="button" id="uploadPhotosBtn" class="hidden px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition">
+                    <button type="button" id="uploadPhotosBtn"
+                        class="hidden px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition">
                         <i class="fas fa-upload mr-2"></i>
                         Upload Photos
                     </button>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <button type="button" id="editHotelBtn" class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
+                    <button type="button" id="editHotelBtn"
+                        class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition">
                         <i class="fas fa-edit mr-2"></i>
                         Modifier
                     </button>
                     <button type="button" onclick="closeDetailsModal()"
-                            class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">
+                        class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">
                         Fermer
                     </button>
                 </div>
@@ -425,7 +442,7 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        
+
         <!-- Grille de photos -->
         <div class="flex-1 overflow-y-auto px-6 pb-6">
             <div id="galleryGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -454,8 +471,7 @@
             <div class="space-y-6">
                 <!-- Zone de drop -->
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500 transition-colors cursor-pointer"
-                     id="dropZone"
-                     onclick="document.getElementById('photoFiles').click()">
+                    id="dropZone" onclick="document.getElementById('photoFiles').click()">
                     <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
                     <p class="text-lg font-semibold text-gray-700 mb-2">Cliquez pour sélectionner des photos</p>
                     <p class="text-sm text-gray-500">ou glissez-déposez les fichiers ici</p>
@@ -463,16 +479,13 @@
                 </div>
 
                 <!-- Input file caché -->
-                <input type="file" 
-                       id="photoFiles" 
-                       accept="image/jpeg,image/jpg,image/png" 
-                       multiple 
-                       class="hidden"
-                       onchange="handlePhotosSelected(event)">
+                <input type="file" id="photoFiles" accept="image/jpeg,image/jpg,image/png" multiple class="hidden"
+                    onchange="handlePhotosSelected(event)">
 
                 <!-- Prévisualisation des photos sélectionnées -->
                 <div id="photosPreview" class="hidden">
-                    <h4 class="font-semibold text-gray-900 mb-3">Photos sélectionnées (<span id="photoCount">0</span>)</h4>
+                    <h4 class="font-semibold text-gray-900 mb-3">Photos sélectionnées (<span id="photoCount">0</span>)
+                    </h4>
                     <div id="previewGrid" class="grid grid-cols-3 gap-4">
                         <!-- Miniatures générées dynamiquement -->
                     </div>
@@ -485,7 +498,8 @@
                         <span class="text-sm font-medium text-gray-700" id="progressText">0%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div class="bg-green-600 h-2.5 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+                        <div class="bg-green-600 h-2.5 rounded-full transition-all duration-300" id="progressBar"
+                            style="width: 0%"></div>
                     </div>
                 </div>
             </div>
@@ -493,11 +507,11 @@
             <!-- Footer -->
             <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
                 <button type="button" onclick="closeUploadPhotosModal()"
-                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
                     Annuler
                 </button>
                 <button type="button" id="btnUploadPhotos" onclick="uploadSelectedPhotos()" disabled
-                        class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
                     <i class="fas fa-upload mr-2"></i>
                     Upload Photos
                 </button>
@@ -525,8 +539,7 @@
             <div class="space-y-6">
                 <!-- Zone de drop Excel -->
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500 transition-colors cursor-pointer"
-                     id="excelDropZone"
-                     onclick="document.getElementById('excelFile').click()">
+                    id="excelDropZone" onclick="document.getElementById('excelFile').click()">
                     <i class="fas fa-file-excel text-6xl text-green-500 mb-4"></i>
                     <p class="text-lg font-semibold text-gray-700 mb-2">Cliquez pour sélectionner un fichier Excel</p>
                     <p class="text-sm text-gray-500">ou glissez-déposez le fichier ici</p>
@@ -534,11 +547,8 @@
                 </div>
 
                 <!-- Input file caché -->
-                <input type="file" 
-                       id="excelFile" 
-                       accept=".xlsx,.xls" 
-                       class="hidden"
-                       onchange="handleExcelFileSelected(event)">
+                <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden"
+                    onchange="handleExcelFileSelected(event)">
 
                 <!-- Aperçu du fichier -->
                 <div id="filePreview" class="hidden bg-blue-50 rounded-lg p-4 border border-blue-200">
@@ -562,7 +572,7 @@
                         <i class="fas fa-handshake mr-1"></i> Partenaire associé <span class="text-red-500">*</span>
                     </label>
                     <select id="importPartner" required
-                            class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        class="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         <option value="">Sélectionnez un partenaire...</option>
                     </select>
                     <p class="mt-2 text-xs text-gray-500">
@@ -575,19 +585,19 @@
                     <h4 class="font-semibold text-gray-900 mb-3">
                         <i class="fas fa-cog mr-1"></i> Options d'import
                     </h4>
-                    
+
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="importDownloadPhotos" checked
-                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="ml-3 text-sm text-gray-700">
                             <i class="fas fa-images text-blue-600 mr-1"></i>
                             Télécharger automatiquement 5 photos Google Places par hôtel
                         </span>
                     </label>
-                    
+
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="importSkipDuplicates" checked
-                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="ml-3 text-sm text-gray-700">
                             <i class="fas fa-clone text-orange-600 mr-1"></i>
                             Ignorer les doublons (même nom + ville)
@@ -602,7 +612,8 @@
                         <span class="text-sm font-medium text-gray-700" id="importProgressText">0%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-3">
-                        <div class="bg-green-600 h-3 rounded-full transition-all duration-300" id="importProgressBar" style="width: 0%"></div>
+                        <div class="bg-green-600 h-3 rounded-full transition-all duration-300" id="importProgressBar"
+                            style="width: 0%"></div>
                     </div>
                     <p class="text-xs text-gray-500 mt-2" id="importProgressDetail">Préparation...</p>
                 </div>
@@ -638,11 +649,11 @@
             <!-- Footer -->
             <div class="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
                 <button type="button" onclick="closeImportModal()"
-                        class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    class="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
                     Annuler
                 </button>
                 <button type="button" id="btnStartImport" onclick="startImport()" disabled
-                        class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
                     <i class="fas fa-file-import mr-2"></i>
                     Lancer l'Import
                 </button>
