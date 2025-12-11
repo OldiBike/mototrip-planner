@@ -115,16 +115,16 @@
             </div>
             {% endif %}
 
-            <h1 class="text-5xl font-bold mb-6">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6">
                 <i class="fas fa-motorcycle mr-4"></i>{{ trip.title }}
             </h1>
-            <p class="text-xl mb-8 leading-relaxed">
+            <p class="text-lg md:text-xl mb-8 leading-relaxed">
                 {{ trip.teaserText or trip.description }}
             </p>
 
             <!-- Price Badge -->
             <div class="inline-block">
-                <div class="price-badge text-white px-8 py-4 rounded-full text-2xl font-bold shadow-lg"
+                <div class="price-badge text-white px-6 py-3 md:px-8 md:py-4 rounded-full text-xl md:text-2xl font-bold shadow-lg"
                     style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     <i class="fas fa-euro-sign mr-2"></i>{{ "%.2f"|format(trip.pricePerPerson) }} / personne
                 </div>
@@ -337,6 +337,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://unpkg.com/leaflet-gesture-handling@1.2.2/dist/leaflet-gesture-handling.min.js"></script>
 <script>
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
