@@ -35,7 +35,8 @@
 
         <!-- Tableau des réservations -->
         <div id="bookings-table-container" class="hidden">
-            <div class="overflow-x-auto">
+            <!-- VUE BUREAU (Tableau) -->
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full table-auto">
                     <thead class="bg-gray-100">
                         <tr>
@@ -52,6 +53,11 @@
                         <!-- Les réservations seront injectées ici par JavaScript -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- VUE MOBILE (Cartes) -->
+            <div id="bookings-mobile-list" class="md:hidden space-y-4">
+                <!-- Les cartes seront injectées ici par JavaScript -->
             </div>
 
             <!-- Message si aucune réservation -->

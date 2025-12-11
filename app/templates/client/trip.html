@@ -5,10 +5,23 @@
 {% block extra_styles %}
 <style>
     :root {
-        --partner-primary: {{ partner_theme.primary_color or '#667eea' }};
-        --partner-secondary: {{ partner_theme.secondary_color or '#764ba2' }};
+        --partner-primary: {
+                {
+                partner_theme.primary_color or '#667eea'
+            }
+        }
+
+        ;
+
+        --partner-secondary: {
+                {
+                partner_theme.secondary_color or '#764ba2'
+            }
+        }
+
+        ;
     }
-    
+
     .timeline-item::before {
         content: counter(day);
         counter-increment: day;
@@ -26,11 +39,11 @@
         font-weight: bold;
         font-size: 1.2rem;
     }
-    
+
     .timeline {
         counter-reset: day;
     }
-    
+
     .partner-badge {
         display: inline-flex;
         align-items: center;
@@ -39,9 +52,9 @@
         border-radius: 9999px;
         font-size: 0.875rem;
         font-weight: 600;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    
+
     .poi-badge {
         display: inline-flex;
         align-items: center;
@@ -52,29 +65,35 @@
         background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
         border: 1px solid #d1d5db;
     }
-    
-    {% if partner_theme.primary_color %}
+
+        {
+        % if partner_theme.primary_color %
+    }
+
     .hero-section {
         background: linear-gradient(135deg, var(--partner-primary) 0%, var(--partner-secondary) 100%) !important;
     }
-    
+
     .info-icon {
         color: var(--partner-primary) !important;
     }
-    
+
     .stripe-button {
         background: var(--partner-primary) !important;
     }
-    
+
     .stripe-button:hover {
         opacity: 0.9;
     }
-    
+
     .certified-section {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
         border: 2px solid var(--partner-primary);
     }
-    {% endif %}
+
+        {
+        % endif %
+    }
 </style>
 {% endblock %}
 
@@ -95,14 +114,14 @@
                 {% endfor %}
             </div>
             {% endif %}
-            
+
             <h1 class="text-5xl font-bold mb-6">
                 <i class="fas fa-motorcycle mr-4"></i>{{ trip.title }}
             </h1>
             <p class="text-xl mb-8 leading-relaxed">
                 {{ trip.description }}
             </p>
-            
+
             <!-- Price Badge -->
             <div class="inline-block">
                 <div class="price-badge text-white px-8 py-4 rounded-full text-2xl font-bold shadow-lg">
@@ -124,7 +143,7 @@
             <h3 class="font-bold text-gray-800 mb-2">Durée</h3>
             <p class="text-gray-600">{{ trip.days|length }} jours</p>
         </div>
-        
+
         <!-- Distance -->
         <div class="bg-white rounded-xl p-6 card-shadow text-center">
             <div class="info-icon mx-auto mb-4">
@@ -133,7 +152,7 @@
             <h3 class="font-bold text-gray-800 mb-2">Distance</h3>
             <p class="text-gray-600">{{ total_distance }} km</p>
         </div>
-        
+
         <!-- Hébergements -->
         <div class="bg-white rounded-xl p-6 card-shadow text-center">
             <div class="info-icon mx-auto mb-4">
@@ -142,7 +161,7 @@
             <h3 class="font-bold text-gray-800 mb-2">Hébergements</h3>
             <p class="text-gray-600">{{ trip.days|length - 1 }} nuits</p>
         </div>
-        
+
         <!-- Difficulté -->
         <div class="bg-white rounded-xl p-6 card-shadow text-center">
             <div class="info-icon mx-auto mb-4">
@@ -160,7 +179,7 @@
         <h2 class="text-3xl font-bold text-gray-800 mb-6">
             <i class="fas fa-map-marked-alt mr-3 text-purple-600"></i>Itinéraire
         </h2>
-        <div id="map" class="map-container"></div>
+        <div id="map" class="map-container h-96 md:h-[600px] w-full rounded-xl"></div>
     </div>
 </section>
 
@@ -170,7 +189,7 @@
         <h2 class="text-3xl font-bold text-gray-800 mb-8">
             <i class="fas fa-list-ol mr-3 text-purple-600"></i>Programme détaillé
         </h2>
-        
+
         <div class="timeline relative pl-12">
             {% for day in trip.days %}
             <div class="timeline-item relative mb-8 day-card bg-gray-50 p-6 rounded-xl">
@@ -180,13 +199,13 @@
                         <h3 class="text-2xl font-bold text-gray-800 mb-3">
                             Jour {{ loop.index }} : {{ day.city }}
                         </h3>
-                        
+
                         <!-- Location -->
                         <div class="flex items-center text-gray-600 mb-3">
                             <i class="fas fa-map-marker-alt mr-3 text-purple-600"></i>
                             <span>{{ day.location }}</span>
                         </div>
-                        
+
                         <!-- Distance -->
                         {% if day.distance %}
                         <div class="flex items-center text-gray-600 mb-3">
@@ -194,7 +213,7 @@
                             <span>{{ day.distance }} km</span>
                         </div>
                         {% endif %}
-                        
+
                         <!-- Hotel -->
                         {% if day.hotelName %}
                         <div class="flex items-start text-gray-600 mb-3">
@@ -207,14 +226,14 @@
                             </div>
                         </div>
                         {% endif %}
-                        
+
                         <!-- Description -->
                         {% if day.description %}
                         <div class="mt-4 text-gray-700 leading-relaxed">
                             {{ day.description }}
                         </div>
                         {% endif %}
-                        
+
                         <!-- POIs -->
                         {% if day.pois and day.pois|length > 0 %}
                         <div class="mt-4">
@@ -231,7 +250,7 @@
                             </div>
                         </div>
                         {% endif %}
-                        
+
                         <!-- Activities -->
                         {% if day.activities %}
                         <div class="mt-4">
@@ -246,13 +265,12 @@
                         </div>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Day Image (if available) -->
                     {% if day.imageUrl %}
                     <div class="md:w-1/3">
-                        <img src="{{ day.imageUrl }}" 
-                             alt="{{ day.city }}" 
-                             class="w-full h-48 object-cover rounded-lg shadow-md">
+                        <img src="{{ day.imageUrl }}" alt="{{ day.city }}"
+                            class="w-full h-48 object-cover rounded-lg shadow-md">
                     </div>
                     {% endif %}
                 </div>
@@ -268,7 +286,7 @@
         <h2 class="text-3xl font-bold text-gray-800 mb-8">
             <i class="fas fa-check-circle mr-3 text-purple-600"></i>Ce qui est inclus
         </h2>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="flex items-start">
                 <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
@@ -277,7 +295,7 @@
                     <p class="text-gray-600">{{ trip.days|length - 1 }} nuits en hôtels sélectionnés</p>
                 </div>
             </div>
-            
+
             <div class="flex items-start">
                 <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
                 <div>
@@ -285,7 +303,7 @@
                     <p class="text-gray-600">Roadbook GPS et carte interactive</p>
                 </div>
             </div>
-            
+
             <div class="flex items-start">
                 <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
                 <div>
@@ -293,7 +311,7 @@
                     <p class="text-gray-600">Assistance pendant tout le voyage</p>
                 </div>
             </div>
-            
+
             <div class="flex items-start">
                 <i class="fas fa-check text-green-500 text-xl mr-4 mt-1"></i>
                 <div>
@@ -310,7 +328,7 @@
     <div class="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-8 card-shadow text-white text-center">
         <h2 class="text-3xl font-bold mb-4">Prêt pour l'aventure ?</h2>
         <p class="text-xl mb-6">Réservez dès maintenant votre voyage personnalisé</p>
-        
+
         <div class="flex flex-col md:flex-row items-center justify-center gap-6">
             <!-- Price Display -->
             <div class="text-center">
@@ -319,14 +337,14 @@
                 </div>
                 <div class="text-lg opacity-90">par personne</div>
             </div>
-            
+
             <!-- Stripe Button -->
-            <button id="checkout-button" 
-                    class="stripe-button text-white px-12 py-4 rounded-full text-xl font-bold shadow-xl">
+            <button id="checkout-button"
+                class="stripe-button text-white px-12 py-4 rounded-full text-xl font-bold shadow-xl">
                 <i class="fas fa-credit-card mr-3"></i>Réserver maintenant
             </button>
         </div>
-        
+
         <p class="text-sm mt-6 opacity-75">
             <i class="fas fa-lock mr-2"></i>Paiement sécurisé via Stripe
         </p>
@@ -338,8 +356,8 @@
     <div class="bg-white rounded-xl p-6 card-shadow text-center">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">Des questions ?</h2>
         <p class="text-gray-600 mb-6">Notre équipe est là pour vous aider</p>
-        <a href="https://oldibike.be/contact" 
-           class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg transition">
+        <a href="https://oldibike.be/contact"
+            class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg transition">
             <i class="fas fa-envelope mr-2"></i>Nous contacter
         </a>
     </div>
@@ -351,21 +369,22 @@
 <script>
     // Trip data from backend
     const tripData = JSON.parse('{{ trip_json|tojson|safe }}');
-    
+
     let map;
     let directionsService;
     let directionsRenderer;
-    
+
     // Initialize Google Maps
     function initMap() {
         // Create map centered on first location
         const firstDay = tripData.days[0];
         const centerLat = firstDay.latitude || 50.8503; // Brussels default
         const centerLng = firstDay.longitude || 4.3517;
-        
+
         map = new google.maps.Map(document.getElementById('map'), {
             zoom: 6,
             center: { lat: centerLat, lng: centerLng },
+            gestureHandling: 'cooperative', // Requires 2-finger touch to pan on mobile
             styles: [
                 {
                     featureType: "poi",
@@ -374,7 +393,7 @@
                 }
             ]
         });
-        
+
         directionsService = new google.maps.DirectionsService();
         directionsRenderer = new google.maps.DirectionsRenderer({
             map: map,
@@ -384,10 +403,10 @@
                 strokeWeight: 4
             }
         });
-        
+
         // If we have multiple days with coordinates, show route
         const validDays = tripData.days.filter(day => day.latitude && day.longitude);
-        
+
         if (validDays.length > 1) {
             showRoute(validDays);
         } else if (validDays.length === 1) {
@@ -400,25 +419,25 @@
             });
         }
     }
-    
+
     // Show route on map
     function showRoute(days) {
         const waypoints = days.slice(1, -1).map(day => ({
             location: new google.maps.LatLng(day.latitude, day.longitude),
             stopover: true
         }));
-        
+
         const request = {
             origin: new google.maps.LatLng(days[0].latitude, days[0].longitude),
             destination: new google.maps.LatLng(days[days.length - 1].latitude, days[days.length - 1].longitude),
             waypoints: waypoints,
             travelMode: 'DRIVING'
         };
-        
+
         directionsService.route(request, (result, status) => {
             if (status === 'OK') {
                 directionsRenderer.setDirections(result);
-                
+
                 // Add custom markers with day numbers
                 days.forEach((day, index) => {
                     new google.maps.Marker({
@@ -454,16 +473,16 @@
             }
         });
     }
-    
+
     // Stripe Checkout
-    document.getElementById('checkout-button').addEventListener('click', async function() {
+    document.getElementById('checkout-button').addEventListener('click', async function () {
         const button = this;
         const originalText = button.innerHTML;
-        
+
         // Désactive le bouton pendant le traitement
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Redirection...';
-        
+
         try {
             // Crée la session de paiement
             const response = await fetch(`/voyageperso/{{ trip.slug }}/checkout`, {
@@ -476,26 +495,26 @@
                     email: null   // Stripe demandera l'email
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success && data.checkout_url) {
                 // Redirige vers Stripe Checkout
                 window.location.href = data.checkout_url;
             } else {
                 throw new Error(data.error || 'Erreur lors de la création de la session');
             }
-            
+
         } catch (error) {
             console.error('Erreur:', error);
             alert('Une erreur est survenue. Veuillez réessayer ou nous contacter.');
-            
+
             // Réactive le bouton
             button.disabled = false;
             button.innerHTML = originalText;
         }
     });
-    
+
     // Smooth scroll for internal links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
