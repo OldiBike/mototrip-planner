@@ -51,7 +51,7 @@ async function loadCustomers() {
         console.error('Erreur chargement clients:', error);
         showToast('Erreur lors du chargement des clients', 'error');
         document.getElementById('loading-customers').classList.add('hidden');
-        document.getElementById('customers-table-container').classList.remove('hidden');
+        document.getElementById('customers-data-container').classList.remove('hidden');
     }
 }
 
@@ -60,7 +60,7 @@ async function loadCustomers() {
  */
 function renderCustomers() {
     const loading = document.getElementById('loading-customers');
-    const container = document.getElementById('customers-table-container');
+    const container = document.getElementById('customers-data-container');
     const tbody = document.getElementById('customers-list');
     const noCustomersMsg = document.getElementById('no-customers-message');
 
@@ -103,6 +103,40 @@ function renderCustomers() {
                 </div>
             </td>
         </tr>
+    `).join('');
+
+    // RENDER MOBILE CARDS
+    const mobileList = document.getElementById('customers-mobile-list');
+    mobileList.innerHTML = customers.map(customer => `
+        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h3 class="font-bold text-gray-900 text-lg">${escapeHtml(customer.name)}</h3>
+                    <p class="text-sm text-gray-500">${escapeHtml(customer.email)}</p>
+                </div>
+                <div class="flex items-center gap-1">
+                     <a href="/admin/customers/${customer.id}" class="bg-blue-50 text-blue-600 p-2 rounded hover:bg-blue-100 transition-colors" title="Voir détails">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="flex justify-between items-center text-sm text-gray-600 mb-4">
+                <span class="flex items-center"><i class="fas fa-phone mr-2 text-gray-400"></i>${escapeHtml(customer.phone)}</span>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${customer.tripCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                    ${customer.tripCount} voyage${customer.tripCount > 1 ? 's' : ''}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button class="edit-customer-btn flex items-center justify-center py-2 px-3 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 text-sm font-medium" data-customer-id="${customer.id}">
+                    <i class="fas fa-edit mr-2 text-green-500"></i> Modifier
+                </button>
+                <button class="delete-customer-btn flex items-center justify-center py-2 px-3 border border-red-200 bg-red-50 rounded text-red-600 hover:bg-red-100 text-sm font-medium" data-customer-id="${customer.id}">
+                    <i class="fas fa-trash-alt mr-2"></i> Supprimer
+                </button>
+            </div>
+        </div>
     `).join('');
 
     // Attache les event listeners

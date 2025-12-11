@@ -32,28 +32,36 @@
             </button>
         </div>
 
-        <!-- Loading spinner -->
+        <!-- LOADING SPINNER -->
         <div id="loading-customers" class="flex justify-center items-center py-8">
             <div class="spinner"></div>
         </div>
 
-        <!-- Tableau des clients -->
-        <div id="customers-table-container" class="hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Nom</th>
-                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Téléphone</th>
-                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Voyages</th>
-                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="customers-list">
-                        <!-- Les clients seront injectés ici par JavaScript -->
-                    </tbody>
-                </table>
+        <!-- CONTENT WRAPPER (Hidden until loaded) -->
+        <div id="customers-data-container" class="hidden">
+            <!-- Tableau des clients (Desktop) -->
+            <div id="customers-table-container" class="hidden md:block">
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Nom</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Téléphone</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Voyages</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customers-list">
+                            <!-- Les clients seront injectés ici par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Liste des clients (Mobile Cards) -->
+            <div id="customers-mobile-list" class="md:hidden space-y-4">
+                <!-- Les cartes seront injectées ici par JavaScript -->
             </div>
 
             <!-- Message si aucun client -->
