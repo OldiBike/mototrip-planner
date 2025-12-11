@@ -791,7 +791,15 @@
     // ... MAP ...
     const mapElement = document.getElementById('trip-map');
     if (mapElement) {
-        const map = L.map('trip-map', { scrollWheelZoom: false, zoomControl: false }).setView([46.2276, 2.2137], 6);
+        const map = L.map('trip-map', {
+            scrollWheelZoom: false,
+            zoomControl: false,
+            doubleClickZoom: false,
+            touchZoom: false,
+            boxZoom: false,
+            keyboard: false,
+            gestureHandling: true
+        }).setView([46.2276, 2.2137], 6);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
         }).addTo(map);
